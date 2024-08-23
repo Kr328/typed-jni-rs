@@ -1,0 +1,15 @@
+[package]
+name = "typed-jni"
+version.workspace = true
+edition.workspace = true
+
+[features]
+std = []
+
+default = ["std"]
+
+[dependencies]
+typed-jni-macros = { path = "../macros" }
+
+uluru = { version = "3.1" }
+atomic-wait = { version = "1.1" }
