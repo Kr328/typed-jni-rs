@@ -247,3 +247,13 @@ pub fn test_boolean_parameter() {
         assert!(!success);
     });
 }
+
+#[test]
+pub fn test_find_array_class() {
+    with_java_vm(|ctx| {
+        Class::<_, Array<bool>>::find_class(ctx).unwrap();
+        Class::<_, Array<JString>>::find_class(ctx).unwrap();
+        Class::<_, Array<Array<bool>>>::find_class(ctx).unwrap();
+        Class::<_, Array<Array<JString>>>::find_class(ctx).unwrap();
+    })
+}
