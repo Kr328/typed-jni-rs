@@ -1,10 +1,7 @@
 use std::{process::Stdio, sync::OnceLock};
 
 use jni::JavaVM;
-use typed_jni::{
-    define_java_class, CallMethod, Context, FindClass, GetField, Global, JavaArray, JavaPrimitiveArray, JavaString, Local,
-    NewObject, This,
-};
+use typed_jni::{define_java_class, Array, AsRaw, Class, Context, JString, Local, Object};
 
 fn with_java_vm<R, F: FnOnce(&Context) -> R>(f: F) -> R {
     static VM: OnceLock<JavaVM> = OnceLock::new();
@@ -37,8 +34,8 @@ pub fn test_convert_string() {
                 let response = reqwest::get(TEST_CONTENT_URL).await.unwrap();
                 let content = response.text().await.unwrap();
 
-                let o_string: JavaString<false, Local> = JavaString::from_string(ctx, &content);
-                let r_content: String = o_string.to_string(ctx);
+                let o_string: Object<Local, JString> = Object::new_string(ctx, &content);
+                let r_content: String = o_string.get_string(ctx);
 
                 assert_eq!(content, r_content);
             })
@@ -56,19 +53,21 @@ pub fn test_string_array() {
             })
             .collect::<Vec<_>>();
 
-        let o_array = JavaArray::new::<Global>(ctx, array.len() as _, &JavaString::find_class(ctx).unwrap(), None).unwrap();
+        let o_array =
+            Object::<Local, Array<JString>>::new(ctx, array.len() as _, &Class::<Local, JString>::find_class(ctx).unwrap())
+                .unwrap();
         for (index, s) in array.iter().enumerate() {
             o_array
-                .set_element(ctx, index as _, Some(&JavaString::from_string(ctx, s)))
+                .set_element(ctx, index as _, Some(&Object::<Local, JString>::new_string(ctx, s)))
                 .unwrap();
         }
 
         let r_length = o_array.length(ctx);
         let mut r_array = Vec::with_capacity(r_length as _);
         for index in 0..r_length {
-            let s: Option<JavaString<false, Local>> = o_array.get_element(ctx, index).unwrap();
+            let s: Option<Object<_, JString>> = o_array.get_element(ctx, index).unwrap();
 
-            r_array.push(s.unwrap().to_string(ctx));
+            r_array.push(s.unwrap().get_string(ctx));
         }
 
         assert_eq!(array, r_array);
@@ -81,7 +80,7 @@ pub fn test_bool_array() {
         let length: usize = rand::random::<usize>() % 128;
         let array: Vec<bool> = (0..length).map(|_| rand::random::<bool>()).collect();
 
-        let o_array = JavaPrimitiveArray::new(ctx, array.len() as _).unwrap();
+        let o_array = Object::<Local, Array<bool>>::primitive(ctx, array.len() as _).unwrap();
         o_array.set_region(ctx, 0, &array).unwrap();
 
         let mut r_array = vec![false; array.len()];
@@ -98,7 +97,7 @@ define_java_class!(JavaURLClassLoader, "java/net/URLClassLoader");
 
 struct UrlClassLoader<'ctx> {
     _class_path: tempdir::TempDir,
-    loader: JavaURLClassLoader<false, Local<'ctx>>,
+    loader: Object<Local<'ctx>, JavaURLClassLoader>,
 }
 
 fn compile_file_and_load_classes<'ctx>(ctx: &'ctx Context, public_class_name: &str, content: &str) -> UrlClassLoader<'ctx> {
@@ -121,15 +120,17 @@ fn compile_file_and_load_classes<'ctx>(ctx: &'ctx Context, public_class_name: &s
         panic!("compile java failed");
     }
 
-    let c_file: JavaFile<true, Local> = JavaFile::find_class(ctx).unwrap();
-    let o_file: JavaFile<false, Local> = c_file
-        .new_object(ctx, &JavaString::from_string(ctx, temp.path().to_str().unwrap()))
+    let c_file: Class<_, JavaFile> = Class::find_class(ctx).unwrap();
+    let o_file: Object<_, JavaFile> = c_file
+        .new_object(ctx, &Object::<_, JString>::new_string(ctx, temp.path().to_str().unwrap()))
         .unwrap();
-    let o_uri: JavaURI<false, Local> = Option::unwrap(o_file.call_method(ctx, "toURI", ()).unwrap());
-    let o_url: JavaURL<false, Local> = Option::unwrap(o_uri.call_method(ctx, "toURL", ()).unwrap());
-    let o_urls: JavaArray<false, JavaURL<true, Local>, Local> =
-        JavaArray::new(ctx, 1, &JavaURL::find_class(ctx).unwrap(), Some(&o_url)).unwrap();
-    let o_class_loader = JavaURLClassLoader::find_class(ctx).unwrap().new_object(ctx, &o_urls).unwrap();
+    let o_uri: Object<_, JavaURI> = Option::unwrap(o_file.call_method(ctx, "toURI", ()).unwrap());
+    let o_url: Object<_, JavaURL> = Option::unwrap(o_uri.call_method(ctx, "toURL", ()).unwrap());
+    let o_urls: Object<_, Array<JavaURL>> = Object::with_initial(ctx, 1, &Class::find_class(ctx).unwrap(), &o_url).unwrap();
+    let o_class_loader = Class::<_, JavaURLClassLoader>::find_class(ctx)
+        .unwrap()
+        .new_object(ctx, &o_urls)
+        .unwrap();
 
     UrlClassLoader {
         _class_path: temp,
@@ -157,17 +158,17 @@ pub fn test_inner_class() {
         define_java_class!(JavaRustTest, "RustTest");
         define_java_class!(JavaInnerClass, "RustTest$InnerClass");
 
-        let c_test: JavaRustTest<true, _> = Option::unwrap(
+        let c_test: Class<_, JavaRustTest> = Option::unwrap(
             loader
                 .loader
-                .call_method(ctx, "loadClass", &JavaString::from_string(ctx, "RustTest"))
+                .call_method(ctx, "loadClass", &Object::<_, JString>::new_string(ctx, "RustTest"))
                 .unwrap(),
         );
 
-        let o_inner: JavaInnerClass<false, _> = Option::unwrap(c_test.get_field(ctx, "INNER").unwrap());
-        let value: JavaString<false, _> = Option::unwrap(o_inner.get_field(ctx, "VALUE").unwrap());
+        let o_inner: Object<_, JavaInnerClass> = Option::unwrap(c_test.get_field(ctx, "INNER").unwrap());
+        let value: Object<_, JString> = Option::unwrap(o_inner.get_field(ctx, "VALUE").unwrap());
 
-        assert_eq!("STRING FROM INNER CLASS", value.to_string(ctx));
+        assert_eq!("STRING FROM INNER CLASS", value.get_string(ctx));
     });
 }
 
@@ -192,26 +193,26 @@ pub fn test_register_native() {
 
         extern "C" fn call_native<'ctx>(
             ctx: &'ctx Context,
-            _class: JavaRustNativeTest<false, Local<'ctx>>,
+            _class: Object<Local<'ctx>, JavaRustNativeTest>,
             value: i32,
             value2: f32,
-            value3: JavaString<false, Local<'ctx>>,
+            value3: Object<Local<'ctx>, JString>,
         ) -> i32 {
-            let v = value + value2 as i32 + value3.to_string(ctx).len() as i32;
+            let v = value + value2 as i32 + value3.get_string(ctx).len() as i32;
 
             v
         }
 
-        let c_test: JavaRustNativeTest<true, _> = Option::unwrap(
+        let c_test: Class<_, JavaRustNativeTest> = Option::unwrap(
             loader
                 .loader
-                .call_method(ctx, "loadClass", &JavaString::from_string(ctx, "RustNativeTest"))
+                .call_method(ctx, "loadClass", &Object::<_, JString>::new_string(ctx, "RustNativeTest"))
                 .unwrap(),
         );
 
         unsafe {
             ctx.register_natives(
-                c_test.as_ref(),
+                c_test.as_raw(),
                 [(c"nativeCall", c"(IFLjava/lang/String;)I", call_native as *const ())],
             )
             .unwrap()
@@ -219,7 +220,11 @@ pub fn test_register_native() {
 
         assert_eq!(
             c_test
-                .call_method::<3, i32, _>(ctx, "callNative", (114514, 12.78f32, &JavaString::from_string(ctx, "114514")))
+                .call_method::<3, i32, _>(
+                    ctx,
+                    "callNative",
+                    (114514, 12.78f32, &Object::<_, JString>::new_string(ctx, "114514"))
+                )
                 .unwrap(),
             114514 + 12 + 6
         );
@@ -232,8 +237,8 @@ pub fn test_boolean_parameter() {
     with_java_vm(|ctx| {
         define_java_class!(JavaAtomicBoolean, "java/util/concurrent/atomic/AtomicBoolean");
 
-        let c_atomic_boolean = JavaAtomicBoolean::find_class(ctx).unwrap();
-        let o_atomic_boolean: JavaAtomicBoolean<false, Local> = c_atomic_boolean.new_object(ctx, true).unwrap();
+        let c_atomic_boolean = Class::<_, JavaAtomicBoolean>::find_class(ctx).unwrap();
+        let o_atomic_boolean = c_atomic_boolean.new_object(ctx, true).unwrap();
 
         let success: bool = o_atomic_boolean.call_method(ctx, "compareAndSet", (true, false)).unwrap();
         assert!(success);

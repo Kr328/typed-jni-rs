@@ -10,7 +10,7 @@ use core::{
     sync::atomic::{AtomicPtr, Ordering},
 };
 
-use crate::{Args, Context, Field, Local, Method, Signature, StrongRef, JavaThrowable, Type, Weak};
+use crate::{Args, Context, Field, FromRaw, IntoRaw, Local, Method, Object, Signature, StrongRef, Throwable, Type, Weak};
 
 const MAX_MEMBER_CACHE_PER_SLOT: usize = 128;
 
@@ -93,35 +93,56 @@ pub fn method_signature_of(args: &[Signature], ret: &Signature) -> String {
     format!("({}){}", ArgsSignature(args), ret)
 }
 
-pub fn find_method<'a, 'ctx, const STATIC: bool, const ARGS: usize, C: StrongRef, A: Args<'a, ARGS>, R: Type>(
+fn find_member<
+    'ctx,
+    C: StrongRef,
+    M: Copy,
+    F: FnOnce(Option<*const ()>) -> Result<(M, *const ()), Object<Local<'ctx>, Throwable>>,
+>(
     ctx: &'ctx Context,
     class: &C,
     name: &'static str,
-) -> Result<Method<STATIC>, JavaThrowable<false, Local<'ctx>>> {
+    find: F,
+) -> Result<M, Object<Local<'ctx>, Throwable>> {
     use_a_slot(|slot| {
-        let types_id = find_method::<STATIC, ARGS, C, A, R> as *const () as usize;
+        let types_id = find_member::<C, M, F> as *const () as usize;
 
         let cached = slot.entries.find(|e| {
             e.types_id == types_id && name.as_ptr() == e.name.as_ptr() && ctx.is_same_object(Some(&e.class), Some(class))
         });
         match cached {
-            Some(e) => unsafe { Ok(Method::<STATIC>::from_raw(e.member as _)) },
+            Some(e) => Ok(find(Some(e.member))?.0),
             None => {
-                let method = ctx.find_method(
-                    class,
-                    CString::new(name).unwrap(),
-                    CString::new(method_signature_of(&A::signatures(), &R::SIGNATURE)).unwrap(),
-                )?;
+                let (member, cache) = find(None)?;
 
                 slot.entries.insert(Entry {
                     class: class.downgrade_weak(),
                     types_id,
                     name,
-                    member: method.as_raw() as _,
+                    member: cache,
                 });
 
-                Ok(method)
+                Ok(member)
             }
+        }
+    })
+}
+
+pub fn find_method<'a, 'ctx, const STATIC: bool, const ARGS: usize, C: StrongRef, A: Args<'a, ARGS>, R: Type>(
+    ctx: &'ctx Context,
+    class: &C,
+    name: &'static str,
+) -> Result<Method<STATIC>, Object<Local<'ctx>, Throwable>> {
+    find_member(ctx, class, name, |cached| match cached {
+        Some(ptr) => unsafe { Ok((Method::from_raw(ptr as _), ptr)) },
+        None => {
+            let m = ctx.find_method(
+                class,
+                CString::new(name).unwrap(),
+                CString::new(method_signature_of(&A::signatures(), &R::SIGNATURE)).unwrap(),
+            )?;
+
+            Ok((m, m.into_raw() as *const ()))
         }
     })
 }
@@ -130,31 +151,17 @@ pub fn find_field<'a, 'ctx, const STATIC: bool, C: StrongRef, T: Type>(
     ctx: &'ctx Context,
     class: &C,
     name: &'static str,
-) -> Result<Field<STATIC>, JavaThrowable<false, Local<'ctx>>> {
-    use_a_slot(|slot| {
-        let types_id = find_field::<STATIC, C, T> as *const () as usize;
+) -> Result<Field<STATIC>, Object<Local<'ctx>, Throwable>> {
+    find_member(ctx, class, name, |cached| match cached {
+        Some(ptr) => unsafe { Ok((Field::from_raw(ptr as _), ptr)) },
+        None => {
+            let f = ctx.find_field(
+                class,
+                CString::new(name).unwrap(),
+                CString::new(T::SIGNATURE.to_string()).unwrap(),
+            )?;
 
-        let cached = slot.entries.find(|e| {
-            e.types_id == types_id && name.as_ptr() == e.name.as_ptr() && ctx.is_same_object(Some(&e.class), Some(class))
-        });
-        match cached {
-            Some(e) => unsafe { Ok(Field::<STATIC>::from_raw(e.member as _)) },
-            None => {
-                let field = ctx.find_field(
-                    class,
-                    CString::new(name).unwrap(),
-                    CString::new(T::SIGNATURE.to_string()).unwrap(),
-                )?;
-
-                slot.entries.insert(Entry {
-                    class: class.downgrade_weak(),
-                    types_id,
-                    name,
-                    member: field.as_raw() as _,
-                });
-
-                Ok(field)
-            }
+            Ok((f, f.into_raw() as _))
         }
     })
 }

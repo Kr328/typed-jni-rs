@@ -3,36 +3,39 @@ use core::marker::PhantomData;
 use crate::{
     context::Context,
     sys::{jobject, jweak},
+    AsRaw, FromRaw, Raw,
 };
 
 mod __sealed {
     pub trait Sealed {}
 }
 
-pub trait Ref: Sized + Clone + __sealed::Sealed {
+pub trait Ref: Raw<Raw = jobject> + AsRaw + FromRaw + Sized + Clone + __sealed::Sealed {
     const KIND: &'static str;
+}
 
-    fn as_raw(&self) -> jobject;
+impl<R: Ref> Raw for R {
+    type Raw = jobject;
 }
 
 pub trait StrongRef: Ref {
     fn to_global(&self) -> Global {
-        Context::with_attached(|ctx| unsafe { Global::from_raw(ctx.new_global_ref(self.as_raw())) })
+        Context::with_attached(|ctx| unsafe { Global::from_raw(ctx.new_global_ref(*self.as_raw())) })
     }
 
     fn to_local<'ctx>(&self, ctx: &'ctx Context) -> Local<'ctx> {
-        unsafe { Local::from_raw(ctx, ctx.new_local_ref(self.as_raw())) }
+        unsafe { Local::from_raw(ctx.new_local_ref(*self.as_raw())) }
     }
 
     fn downgrade_weak(&self) -> Weak {
-        Context::with_attached(|ctx| unsafe { Weak::from_raw(ctx.new_weak_global_ref(self.as_raw())) })
+        Context::with_attached(|ctx| unsafe { Weak::from_raw(ctx.new_weak_global_ref(*self.as_raw())) })
     }
 }
 
 pub trait WeakRef: Ref {
     fn upgrade_global(&self) -> Option<Global> {
         Context::with_attached(|ctx| unsafe {
-            let raw = ctx.new_global_ref(self.as_raw());
+            let raw = ctx.new_global_ref(*self.as_raw());
 
             if raw.is_null() {
                 None
@@ -44,12 +47,12 @@ pub trait WeakRef: Ref {
 
     fn upgrade_local<'ctx>(&self, ctx: &'ctx Context) -> Option<Local<'ctx>> {
         unsafe {
-            let raw = ctx.new_local_ref(self.as_raw());
+            let raw = ctx.new_local_ref(*self.as_raw());
 
             if raw.is_null() {
                 None
             } else {
-                Some(Local::from_raw(ctx, raw))
+                Some(Local::from_raw(raw))
             }
         }
     }
@@ -87,12 +90,20 @@ impl Drop for Global {
 
 impl __sealed::Sealed for Global {}
 
+impl AsRaw for Global {
+    fn as_raw(&self) -> &Self::Raw {
+        &self.raw
+    }
+}
+
+impl FromRaw for Global {
+    unsafe fn from_raw(raw: Self::Raw) -> Self {
+        Self { raw }
+    }
+}
+
 impl Ref for Global {
     const KIND: &'static str = "Global";
-
-    fn as_raw(&self) -> jobject {
-        self.raw
-    }
 }
 
 impl StrongRef for Global {}
@@ -101,12 +112,6 @@ impl StrongRef for Global {}
 pub struct Local<'ctx> {
     raw: jobject,
     _ctx: PhantomData<&'ctx Context>,
-}
-
-impl<'ctx> Local<'ctx> {
-    pub unsafe fn from_raw(_ctx: &'ctx Context, raw: jobject) -> Self {
-        Self { raw, _ctx: PhantomData }
-    }
 }
 
 impl<'ctx> Clone for Local<'ctx> {
@@ -124,12 +129,20 @@ impl<'ctx> Drop for Local<'ctx> {
     }
 }
 
+impl<'ctx> AsRaw for Local<'ctx> {
+    fn as_raw(&self) -> &Self::Raw {
+        &self.raw
+    }
+}
+
+impl<'ctx> FromRaw for Local<'ctx> {
+    unsafe fn from_raw(raw: Self::Raw) -> Self {
+        Self { raw, _ctx: PhantomData }
+    }
+}
+
 impl<'ctx> Ref for Local<'ctx> {
     const KIND: &'static str = "Local";
-
-    fn as_raw(&self) -> jobject {
-        self.raw
-    }
 }
 
 impl<'ctx> __sealed::Sealed for Local<'ctx> {}
@@ -166,12 +179,20 @@ impl Drop for Weak {
     }
 }
 
+impl AsRaw for Weak {
+    fn as_raw(&self) -> &Self::Raw {
+        &self.raw
+    }
+}
+
+impl FromRaw for Weak {
+    unsafe fn from_raw(raw: Self::Raw) -> Self {
+        Self { raw }
+    }
+}
+
 impl Ref for Weak {
     const KIND: &'static str = "Weak";
-
-    fn as_raw(&self) -> jobject {
-        self.raw
-    }
 }
 
 impl __sealed::Sealed for Weak {}
