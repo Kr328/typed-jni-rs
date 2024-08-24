@@ -3,14 +3,14 @@ use core::marker::PhantomData;
 use crate::{
     context::Context,
     sys::{jobject, jweak},
-    AsRaw, FromRaw, Raw,
+    AsRaw, FromRaw, IntoRaw, Raw,
 };
 
 mod __sealed {
     pub trait Sealed {}
 }
 
-pub trait Ref: Raw<Raw = jobject> + AsRaw + FromRaw + Sized + Clone + __sealed::Sealed {
+pub trait Ref: Raw<Raw = jobject> + AsRaw + IntoRaw + FromRaw + Sized + Clone + __sealed::Sealed {
     const KIND: &'static str;
 }
 
@@ -102,6 +102,16 @@ impl FromRaw for Global {
     }
 }
 
+impl IntoRaw for Global {
+    fn into_raw(self) -> Self::Raw {
+        let r = self.raw;
+
+        core::mem::forget(self);
+
+        r
+    }
+}
+
 impl Ref for Global {
     const KIND: &'static str = "Global";
 }
@@ -138,6 +148,16 @@ impl<'ctx> AsRaw for Local<'ctx> {
 impl<'ctx> FromRaw for Local<'ctx> {
     unsafe fn from_raw(raw: Self::Raw) -> Self {
         Self { raw, _ctx: PhantomData }
+    }
+}
+
+impl<'ctx> IntoRaw for Local<'ctx> {
+    fn into_raw(self) -> Self::Raw {
+        let r = self.raw;
+
+        core::mem::forget(self);
+
+        r
     }
 }
 
@@ -188,6 +208,16 @@ impl AsRaw for Weak {
 impl FromRaw for Weak {
     unsafe fn from_raw(raw: Self::Raw) -> Self {
         Self { raw }
+    }
+}
+
+impl IntoRaw for Weak {
+    fn into_raw(self) -> Self::Raw {
+        let r = self.raw;
+
+        core::mem::forget(self);
+
+        r
     }
 }
 

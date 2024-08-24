@@ -1,7 +1,7 @@
-use std::{process::Stdio, sync::OnceLock};
+use std::{process::Stdio, ptr, sync::OnceLock};
 
 use jni::JavaVM;
-use typed_jni::{define_java_class, Array, AsRaw, Class, Context, JString, Local, Object};
+use typed_jni::{define_java_class, Array, AsRaw, Class, Context, JString, Nullable, Object};
 
 fn with_java_vm<R, F: FnOnce(&Context) -> R>(f: F) -> R {
     static VM: OnceLock<JavaVM> = OnceLock::new();
@@ -191,10 +191,10 @@ pub fn test_register_native() {
 
         extern "C" fn call_native<'ctx>(
             ctx: &'ctx Context,
-            _class: Object<'ctx, JavaRustNativeTest, Local<'ctx>>,
+            _: Object<'ctx, JavaRustNativeTest>,
             value: i32,
             value2: f32,
-            value3: Object<'ctx, JString, Local<'ctx>>,
+            value3: Object<'ctx, JString>,
         ) -> i32 {
             let v = value + value2 as i32 + value3.get_string(ctx).len() as i32;
 
@@ -226,7 +226,6 @@ pub fn test_register_native() {
                 .unwrap(),
             114514 + 12 + 6
         );
-        // assert_eq!(b_test.native_call::<jint>(env, c_test, 1919810).unwrap(), 1919811);
     });
 }
 
@@ -254,4 +253,112 @@ pub fn test_find_array_class() {
         Class::<Array<Array<bool>>>::find_class(ctx).unwrap();
         Class::<Array<Array<JString>>>::find_class(ctx).unwrap();
     })
+}
+
+#[test]
+pub fn test_return_object() {
+    with_java_vm(|ctx| {
+        let loader = compile_file_and_load_classes(
+            ctx,
+            "RustNativeTest",
+            r#"
+                public class RustNativeTest {
+                    private static native String nativeCall(boolean empty);
+
+                    public static String callNative(boolean empty) {
+                        return nativeCall(empty);
+                    }
+                }
+            "#,
+        );
+
+        define_java_class!(JavaRustNativeTest, "RustNativeTest");
+
+        extern "C" fn call_native<'ctx>(
+            ctx: &'ctx Context,
+            _: Object<'ctx, JavaRustNativeTest>,
+            empty: bool,
+        ) -> Nullable<Object<'ctx, JString>> {
+            if empty {
+                Nullable::null()
+            } else {
+                Nullable::value(Object::new_string(ctx, "Some"))
+            }
+        }
+
+        let c_test: Class<JavaRustNativeTest> = Option::unwrap(
+            loader
+                .loader
+                .call_method(ctx, "loadClass", &Object::new_string(ctx, "RustNativeTest"))
+                .unwrap(),
+        );
+
+        unsafe {
+            ctx.register_natives(
+                c_test.as_raw(),
+                [(c"nativeCall", c"(Z)Ljava/lang/String;", call_native as *const ())],
+            )
+            .unwrap()
+        }
+
+        assert_eq!(
+            c_test
+                .call_method::<1, Option<Object<JString>>, _>(ctx, "callNative", false)
+                .unwrap()
+                .map(|s| s.get_string(ctx))
+                .as_deref(),
+            Some("Some")
+        );
+        assert_eq!(
+            c_test
+                .call_method::<1, Option<Object<JString>>, _>(ctx, "callNative", true)
+                .unwrap()
+                .map(|s| s.get_string(ctx)),
+            None
+        );
+    })
+}
+
+#[test]
+pub fn test_drop_after_consume() {
+    struct Struct<'a> {
+        mark: &'a mut bool,
+        ptr: *const (),
+    }
+
+    impl<'a> Drop for Struct<'a> {
+        fn drop(&mut self) {
+            *self.mark = true;
+        }
+    }
+
+    impl<'a> Struct<'a> {
+        pub fn consume(self) {
+            let _ = self.ptr;
+
+            std::mem::forget(self);
+        }
+    }
+
+    let mut dropped = false;
+
+    let s = Struct {
+        mark: &mut dropped,
+        ptr: ptr::null_mut(),
+    };
+
+    drop(s);
+
+    assert!(dropped);
+
+    let mut dropped = false;
+
+    let s = Struct {
+        mark: &mut dropped,
+        ptr: ptr::null_mut(),
+    };
+
+    s.consume();
+
+    assert!(!dropped);
 }
