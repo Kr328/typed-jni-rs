@@ -1,5 +1,8 @@
 use alloc::string::String;
-use core::marker::PhantomData;
+use core::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 use crate::{
     typed::{Signature, Type},
@@ -79,9 +82,53 @@ impl<'ctx, T: Type> Object<'ctx, Array<T>> {
     }
 }
 
+pub struct PrimitiveArrayElements<'a, T: PrimitiveType + PrimitiveArrayElement, R: StrongRef> {
+    array: &'a Object<'a, Array<T>, R>,
+    buf: &'a mut [T],
+}
+
+impl<'a, T: PrimitiveType + PrimitiveArrayElement, R: StrongRef> Deref for PrimitiveArrayElements<'a, T, R> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        self.buf
+    }
+}
+
+impl<'a, T: PrimitiveType + PrimitiveArrayElement, R: StrongRef> DerefMut for PrimitiveArrayElements<'a, T, R> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.buf
+    }
+}
+
+impl<'a, T: PrimitiveType + PrimitiveArrayElement, R: StrongRef> Drop for PrimitiveArrayElements<'a, T, R> {
+    fn drop(&mut self) {
+        Context::with_attached(|ctx| unsafe { ctx.release_primitive_array_elements(self.array.as_raw(), self.buf, false) })
+    }
+}
+
+impl<'a, T: PrimitiveType + PrimitiveArrayElement, R: StrongRef> PrimitiveArrayElements<'a, T, R> {
+    pub fn commit(self) {
+        Context::with_attached(|ctx| unsafe { ctx.release_primitive_array_elements(self.array.as_raw(), self.buf, true) });
+
+        core::mem::forget(self)
+    }
+}
+
 impl<'r, T: Type, R: StrongRef> Object<'r, Array<T>, R> {
     pub fn length(&self, ctx: &Context) -> i32 {
         unsafe { ctx.get_array_length(self.as_raw()) }
+    }
+
+    pub fn get_elements<'b>(&'b self, ctx: &'b Context) -> PrimitiveArrayElements<'b, T, R>
+    where
+        T: PrimitiveType + PrimitiveArrayElement,
+    {
+        unsafe {
+            let buf = ctx.get_primitive_array_elements(self.as_raw());
+
+            PrimitiveArrayElements { array: self, buf }
+        }
     }
 
     pub fn get_region<'ctx>(&self, ctx: &'ctx Context, offset: i32, buf: &mut [T]) -> Result<(), Object<'ctx, Throwable>>

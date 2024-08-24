@@ -15,14 +15,14 @@ fn with_java_vm<R, F: FnOnce(&Context) -> R>(f: F) -> R {
 }
 
 #[test]
-pub fn test_create_vm() {
+fn test_create_vm() {
     with_java_vm(|_| {
         println!("CRATED");
     })
 }
 
 #[test]
-pub fn test_convert_string() {
+fn test_convert_string() {
     with_java_vm(|ctx| {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -43,7 +43,7 @@ pub fn test_convert_string() {
 }
 
 #[test]
-pub fn test_string_array() {
+fn test_string_array() {
     with_java_vm(|ctx| {
         let length = rand::random::<usize>() % 128;
         let array = (0..length)
@@ -73,7 +73,7 @@ pub fn test_string_array() {
 }
 
 #[test]
-pub fn test_bool_array() {
+fn test_bool_array() {
     with_java_vm(|ctx| {
         let length: usize = rand::random::<usize>() % 128;
         let array: Vec<bool> = (0..length).map(|_| rand::random::<bool>()).collect();
@@ -137,7 +137,7 @@ fn compile_file_and_load_classes<'ctx>(ctx: &'ctx Context, public_class_name: &s
 }
 
 #[test]
-pub fn test_inner_class() {
+fn test_inner_class() {
     with_java_vm(|ctx| {
         let loader = compile_file_and_load_classes(
             ctx,
@@ -171,7 +171,7 @@ pub fn test_inner_class() {
 }
 
 #[test]
-pub fn test_register_native() {
+fn test_register_native() {
     with_java_vm(|ctx| {
         let loader = compile_file_and_load_classes(
             ctx,
@@ -230,7 +230,7 @@ pub fn test_register_native() {
 }
 
 #[test]
-pub fn test_boolean_parameter() {
+fn test_boolean_parameter() {
     with_java_vm(|ctx| {
         define_java_class!(JavaAtomicBoolean, "java.util.concurrent.atomic.AtomicBoolean");
 
@@ -246,7 +246,7 @@ pub fn test_boolean_parameter() {
 }
 
 #[test]
-pub fn test_find_array_class() {
+fn test_find_array_class() {
     with_java_vm(|ctx| {
         Class::<Array<bool>>::find_class(ctx).unwrap();
         Class::<Array<JString>>::find_class(ctx).unwrap();
@@ -256,7 +256,7 @@ pub fn test_find_array_class() {
 }
 
 #[test]
-pub fn test_return_object() {
+fn test_return_object() {
     with_java_vm(|ctx| {
         let loader = compile_file_and_load_classes(
             ctx,
@@ -320,7 +320,7 @@ pub fn test_return_object() {
 }
 
 #[test]
-pub fn test_drop_after_consume() {
+fn test_drop_after_consume() {
     struct Struct<'a> {
         mark: &'a mut bool,
         ptr: *const (),
@@ -333,7 +333,7 @@ pub fn test_drop_after_consume() {
     }
 
     impl<'a> Struct<'a> {
-        pub fn consume(self) {
+        fn consume(self) {
             let _ = self.ptr;
 
             std::mem::forget(self);
@@ -361,4 +361,47 @@ pub fn test_drop_after_consume() {
     s.consume();
 
     assert!(!dropped);
+}
+
+#[test]
+fn test_int_array_access() {
+    with_java_vm(|ctx| {
+        let array = Object::<Array<i32>>::primitive(ctx, 8).unwrap();
+
+        let mut elements = array.get_elements(ctx);
+
+        elements[0] = 1;
+        elements[1] = 2;
+        elements[2] = 3;
+        elements[3] = 4;
+
+        elements.commit();
+
+        let mut buf = [0i32; 8];
+
+        array.get_region(ctx, 0, &mut buf[..]).unwrap();
+
+        assert_eq!(buf, [1, 2, 3, 4, 0, 0, 0, 0]);
+
+        let mut elements = array.get_elements(ctx);
+
+        elements[4] = 1;
+        elements[5] = 2;
+        elements[6] = 3;
+        elements[7] = 4;
+
+        drop(elements);
+
+        let mut buf = [0i32; 8];
+
+        array.get_region(ctx, 0, &mut buf).unwrap();
+
+        assert_eq!(buf, [1, 2, 3, 4, 0, 0, 0, 0]);
+
+        array.set_region(ctx, 4, &[8, 9, 10, 11]).unwrap();
+
+        let buf = array.get_elements(ctx);
+
+        assert_eq!(*buf, [1, 2, 3, 4, 8, 9, 10, 11])
+    })
 }

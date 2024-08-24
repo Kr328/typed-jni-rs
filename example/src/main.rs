@@ -1,6 +1,3 @@
-#[cfg(test)]
-mod tests;
-
 use std::{path::Path, process::Stdio};
 
 use example::JavaExample;

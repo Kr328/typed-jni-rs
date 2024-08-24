@@ -6,7 +6,10 @@ use core::{ffi::CStr, marker::PhantomData, mem::MaybeUninit, ptr::null_mut};
 use crate::{
     builtin::Throwable,
     reference::{Local, Ref, StrongRef},
-    sys::{jfieldID, jmethodID, jobject, jvalue, jweak, JNIEnv, JNINativeMethod, JNI_FALSE, JNI_OK, JNI_VERSION_1_4},
+    sys::{
+        jfieldID, jmethodID, jobject, jvalue, jweak, JNIEnv, JNINativeMethod, JNI_ABORT, JNI_COMMIT, JNI_FALSE, JNI_OK,
+        JNI_VERSION_1_4,
+    },
     typed::Object,
     vm, AsRaw, FromRaw, IntoRaw, Raw,
 };
@@ -659,10 +662,14 @@ pub trait PrimitiveArrayElement: Sized + __sealed::Sealed {
         offset: i32,
         buf: &[Self],
     ) -> Result<(), Object<'ctx, Throwable>>;
+
+    unsafe fn get_elements<'r, T: StrongRef>(ctx: &'r Context, this: &'r T) -> &'r mut [Self];
+
+    unsafe fn release_elements<T: StrongRef>(ctx: &Context, this: &T, buf: &mut [Self], commit: bool);
 }
 
 macro_rules! impl_primitive_array_element {
-    ($typ:ty, $new:ident, $get_region:ident, $set_region:ident) => {
+    ($typ:ty, $new:ident, $get_region:ident, $set_region:ident, $get_elements:ident, $release_elements:ident) => {
         impl PrimitiveArrayElement for $typ {
             unsafe fn new_array(ctx: &Context, length: i32) -> Result<Local, Object<Throwable>> {
                 call!(ctx, $new, length).map(|r| Local::from_raw(r))
@@ -703,18 +710,91 @@ macro_rules! impl_primitive_array_element {
                     buf.as_ptr()
                 )
             }
+
+            unsafe fn get_elements<'r, T: StrongRef>(ctx: &'r Context, this: &'r T) -> &'r mut [Self] {
+                let length = call_nothrow!(ctx, GetArrayLength, *this.as_raw());
+                let ptr = call_nothrow!(ctx, $get_elements, *this.as_raw(), null_mut());
+
+                core::slice::from_raw_parts_mut(ptr, length as _)
+            }
+
+            unsafe fn release_elements<T: StrongRef>(ctx: &Context, this: &T, buf: &mut [Self], commit: bool) {
+                call_nothrow!(
+                    ctx,
+                    $release_elements,
+                    *this.as_raw(),
+                    buf.as_mut_ptr(),
+                    (if commit { JNI_COMMIT } else { JNI_ABORT }) as i32
+                )
+            }
         }
     };
 }
 
-impl_primitive_array_element!(bool, NewBooleanArray, GetBooleanArrayRegion, SetBooleanArrayRegion);
-impl_primitive_array_element!(i8, NewByteArray, GetByteArrayRegion, SetByteArrayRegion);
-impl_primitive_array_element!(u16, NewCharArray, GetCharArrayRegion, SetCharArrayRegion);
-impl_primitive_array_element!(i16, NewShortArray, GetShortArrayRegion, SetShortArrayRegion);
-impl_primitive_array_element!(i32, NewIntArray, GetIntArrayRegion, SetIntArrayRegion);
-impl_primitive_array_element!(i64, NewLongArray, GetLongArrayRegion, SetLongArrayRegion);
-impl_primitive_array_element!(f32, NewFloatArray, GetFloatArrayRegion, SetFloatArrayRegion);
-impl_primitive_array_element!(f64, NewDoubleArray, GetDoubleArrayRegion, SetDoubleArrayRegion);
+impl_primitive_array_element!(
+    bool,
+    NewBooleanArray,
+    GetBooleanArrayRegion,
+    SetBooleanArrayRegion,
+    GetBooleanArrayElements,
+    ReleaseBooleanArrayElements
+);
+impl_primitive_array_element!(
+    i8,
+    NewByteArray,
+    GetByteArrayRegion,
+    SetByteArrayRegion,
+    GetByteArrayElements,
+    ReleaseByteArrayElements
+);
+impl_primitive_array_element!(
+    u16,
+    NewCharArray,
+    GetCharArrayRegion,
+    SetCharArrayRegion,
+    GetCharArrayElements,
+    ReleaseCharArrayElements
+);
+impl_primitive_array_element!(
+    i16,
+    NewShortArray,
+    GetShortArrayRegion,
+    SetShortArrayRegion,
+    GetShortArrayElements,
+    ReleaseShortArrayElements
+);
+impl_primitive_array_element!(
+    i32,
+    NewIntArray,
+    GetIntArrayRegion,
+    SetIntArrayRegion,
+    GetIntArrayElements,
+    ReleaseIntArrayElements
+);
+impl_primitive_array_element!(
+    i64,
+    NewLongArray,
+    GetLongArrayRegion,
+    SetLongArrayRegion,
+    GetLongArrayElements,
+    ReleaseLongArrayElements
+);
+impl_primitive_array_element!(
+    f32,
+    NewFloatArray,
+    GetFloatArrayRegion,
+    SetFloatArrayRegion,
+    GetFloatArrayElements,
+    ReleaseFloatArrayElements
+);
+impl_primitive_array_element!(
+    f64,
+    NewDoubleArray,
+    GetDoubleArrayRegion,
+    SetDoubleArrayRegion,
+    GetDoubleArrayElements,
+    ReleaseDoubleArrayElements
+);
 
 impl Context {
     pub unsafe fn get_array_length<R: StrongRef>(&self, object: &R) -> i32 {
@@ -741,6 +821,19 @@ impl Context {
         buf: &[E],
     ) -> Result<(), Object<'ctx, Throwable>> {
         E::set_region(self, this, offset, buf)
+    }
+
+    pub unsafe fn get_primitive_array_elements<'r, E: PrimitiveArrayElement, T: StrongRef>(&'r self, this: &'r T) -> &'r mut [E] {
+        E::get_elements(self, this)
+    }
+
+    pub unsafe fn release_primitive_array_elements<E: PrimitiveArrayElement, T: StrongRef>(
+        &self,
+        this: &T,
+        buf: &mut [E],
+        commit: bool,
+    ) {
+        E::release_elements(self, this, buf, commit)
     }
 
     pub unsafe fn new_object_array<R1: StrongRef, R2: Ref>(

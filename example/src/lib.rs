@@ -4,6 +4,9 @@ use typed_jni::{
     Class, Context, JString, Object,
 };
 
+#[cfg(test)]
+mod tests;
+
 define_java_class!(JavaExample, "com.github.kr328.typedjni.Example");
 
 #[no_mangle]
