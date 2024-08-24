@@ -119,12 +119,12 @@ impl<'r, T: Type, R: StrongRef> Object<'r, Array<T>, R> {
         unsafe { Ok(Option::from_raw(ctx.get_object_array_element(self.as_raw(), index)?)) }
     }
 
-    pub fn set_element<'a, RV: Ref + 'a>(
+    pub fn set_element<'ctx, 'a, RV: Ref + 'a>(
         &self,
-        ctx: &'a Context,
+        ctx: &'ctx Context,
         index: i32,
         object: Option<&'a Object<T, RV>>,
-    ) -> Result<(), Object<'a, Throwable, Local<'a>>>
+    ) -> Result<(), Object<'ctx, Throwable>>
     where
         T: ObjectType,
     {
