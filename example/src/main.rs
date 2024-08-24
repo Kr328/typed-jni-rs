@@ -5,12 +5,14 @@ use std::{path::Path, process::Stdio};
 
 use example::JavaExample;
 use jni::JavaVM;
-use typed_jni::{define_java_class, Class, Context, JString, Object};
+use typed_jni::{define_java_class, Class, Context, JString, Object, Type};
 
-define_java_class!(JavaSystem, "java/lang/System");
-define_java_class!(JavaPrintStream, "java/io/PrintStream");
+define_java_class!(JavaSystem, "java.lang.System");
+define_java_class!(JavaPrintStream, "java.io.PrintStream");
 
 fn main() {
+    println!("{}", JavaSystem::SIGNATURE);
+
     let classpath = Path::new("example").join("java");
 
     let ok = std::process::Command::new("javac")

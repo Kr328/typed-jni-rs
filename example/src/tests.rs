@@ -88,10 +88,10 @@ pub fn test_bool_array() {
     })
 }
 
-define_java_class!(JavaFile, "java/io/File");
-define_java_class!(JavaURI, "java/net/URI");
-define_java_class!(JavaURL, "java/net/URL");
-define_java_class!(JavaURLClassLoader, "java/net/URLClassLoader");
+define_java_class!(JavaFile, "java.io.File");
+define_java_class!(JavaURI, "java.net.URI");
+define_java_class!(JavaURL, "java.net.URL");
+define_java_class!(JavaURLClassLoader, "java.net.URLClassLoader");
 
 struct UrlClassLoader<'ctx> {
     _class_path: tempdir::TempDir,
@@ -233,7 +233,7 @@ pub fn test_register_native() {
 #[test]
 pub fn test_boolean_parameter() {
     with_java_vm(|ctx| {
-        define_java_class!(JavaAtomicBoolean, "java/util/concurrent/atomic/AtomicBoolean");
+        define_java_class!(JavaAtomicBoolean, "java.util.concurrent.atomic.AtomicBoolean");
 
         let c_atomic_boolean = Class::<JavaAtomicBoolean>::find_class(ctx).unwrap();
         let o_atomic_boolean = c_atomic_boolean.new_object(ctx, true).unwrap();

@@ -4,7 +4,7 @@ use typed_jni::{
     Class, Context, JString, Local, Object,
 };
 
-define_java_class!(JavaExample, "com/github/kr328/typedjni/Example");
+define_java_class!(JavaExample, "com.github.kr328.typedjni.Example");
 
 #[no_mangle]
 pub extern "C" fn Java_com_github_kr328_typedjni_Example_nativeFunction<'ctx>(
