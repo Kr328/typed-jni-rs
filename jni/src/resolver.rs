@@ -10,7 +10,7 @@ use core::{
     sync::atomic::{AtomicPtr, Ordering},
 };
 
-use crate::{Args, Context, Field, FromRaw, IntoRaw, Local, Method, Object, Signature, StrongRef, Throwable, Type, Weak};
+use crate::{Args, Context, Field, FromRaw, IntoRaw, Method, Object, Signature, StrongRef, Throwable, Type, Weak};
 
 const MAX_MEMBER_CACHE_PER_SLOT: usize = 128;
 
@@ -93,17 +93,12 @@ pub fn method_signature_of(args: &[Signature], ret: &Signature) -> String {
     format!("({}){}", ArgsSignature(args), ret)
 }
 
-fn find_member<
-    'ctx,
-    C: StrongRef,
-    M: Copy,
-    F: FnOnce(Option<*const ()>) -> Result<(M, *const ()), Object<'ctx, Throwable, Local<'ctx>>>,
->(
+fn find_member<'ctx, C: StrongRef, M: Copy, F: FnOnce(Option<*const ()>) -> Result<(M, *const ()), Object<'ctx, Throwable>>>(
     ctx: &'ctx Context,
     class: &C,
     name: &'static str,
     find: F,
-) -> Result<M, Object<'ctx, Throwable, Local<'ctx>>> {
+) -> Result<M, Object<'ctx, Throwable>> {
     use_a_slot(|slot| {
         let types_id = find_member::<C, M, F> as *const () as usize;
 
@@ -132,7 +127,7 @@ pub fn find_method<'a, 'ctx, const STATIC: bool, const ARGS: usize, C: StrongRef
     ctx: &'ctx Context,
     class: &C,
     name: &'static str,
-) -> Result<Method<STATIC>, Object<'ctx, Throwable, Local<'ctx>>> {
+) -> Result<Method<STATIC>, Object<'ctx, Throwable>> {
     find_member(ctx, class, name, |cached| match cached {
         Some(ptr) => unsafe { Ok((Method::from_raw(ptr as _), ptr)) },
         None => {
@@ -151,7 +146,7 @@ pub fn find_field<'a, 'ctx, const STATIC: bool, C: StrongRef, T: Type>(
     ctx: &'ctx Context,
     class: &C,
     name: &'static str,
-) -> Result<Field<STATIC>, Object<'ctx, Throwable, Local<'ctx>>> {
+) -> Result<Field<STATIC>, Object<'ctx, Throwable>> {
     find_member(ctx, class, name, |cached| match cached {
         Some(ptr) => unsafe { Ok((Field::from_raw(ptr as _), ptr)) },
         None => {

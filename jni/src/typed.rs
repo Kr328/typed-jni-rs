@@ -239,7 +239,7 @@ macro_rules! impl_common {
                 unsafe { $name::from_raw(self.as_raw().to_global()) }
             }
 
-            pub fn to_local<'ctx>(&self, ctx: &'ctx Context) -> $name<'ctx, T, Local<'ctx>> {
+            pub fn to_local<'ctx>(&self, ctx: &'ctx Context) -> $name<'ctx, T> {
                 unsafe { $name::from_raw(self.as_raw().to_local(ctx)) }
             }
 
@@ -253,7 +253,7 @@ macro_rules! impl_common {
                 unsafe { self.as_raw().upgrade_global().map(|r| $name::from_raw(r)) }
             }
 
-            pub fn upgrade_local<'ctx>(&self, ctx: &'ctx Context) -> Option<$name<'ctx, T, Local<'ctx>>> {
+            pub fn upgrade_local<'ctx>(&self, ctx: &'ctx Context) -> Option<$name<'ctx, T>> {
                 unsafe { self.as_raw().upgrade_local(ctx).map(|r| $name::from_raw(r)) }
             }
         }
@@ -269,7 +269,7 @@ macro_rules! impl_common {
                 &self,
                 ctx: &'ctx Context,
                 class: &Class<NT, NR>,
-            ) -> Result<$name<'ctx, NT, Local<'ctx>>, ClassCastException> {
+            ) -> Result<$name<'ctx, NT>, ClassCastException> {
                 if self.is_instance_of(ctx, class) {
                     unsafe { Ok($name::from_raw(self.as_raw().to_local(ctx))) }
                 } else {
@@ -301,8 +301,8 @@ macro_rules! impl_common {
 impl_common!(Class);
 impl_common!(Object);
 
-impl<'ctx, T: ObjectType> Class<'ctx, T, Local<'ctx>> {
-    pub fn find_class(ctx: &'ctx Context) -> Result<Self, Object<'ctx, Throwable, Local<'ctx>>> {
+impl<'ctx, T: ObjectType> Class<'ctx, T> {
+    pub fn find_class(ctx: &'ctx Context) -> Result<Self, Object<'ctx, Throwable>> {
         fn class_name_of(signature: &Signature) -> Cow<'static, str> {
             match signature {
                 Signature::Void => Cow::Borrowed("V"),
@@ -411,7 +411,7 @@ fn call_method<'ctx, 't, 'a, const STATIC: bool, const ARGS: usize, T, R, A>(
     this: &T,
     name: &'static str,
     args: A,
-) -> Result<R, Object<'ctx, Throwable, Local<'ctx>>>
+) -> Result<R, Object<'ctx, Throwable>>
 where
     T: AsRaw,
     T::Raw: StrongRef,
@@ -439,7 +439,7 @@ impl<'r, T: ObjectType, R: StrongRef> Object<'r, T, R> {
         ctx: &'ctx Context,
         name: &'static str,
         args: A,
-    ) -> Result<V, Object<'ctx, Throwable, Local<'ctx>>>
+    ) -> Result<V, Object<'ctx, Throwable>>
     where
         V: Type,
         V: FromRaw,
@@ -456,7 +456,7 @@ impl<'r, T: ObjectType, R: StrongRef> Class<'r, T, R> {
         ctx: &'ctx Context,
         name: &'static str,
         args: A,
-    ) -> Result<V, Object<'ctx, Throwable, Local<'ctx>>>
+    ) -> Result<V, Object<'ctx, Throwable>>
     where
         V: Type,
         V: FromRaw,
@@ -472,10 +472,10 @@ impl<'r, T: ObjectType, R: StrongRef> Class<'r, T, R> {
         &self,
         ctx: &'ctx Context,
         args: A,
-    ) -> Result<Object<'ctx, T, Local<'ctx>>, Object<'ctx, Throwable, Local<'ctx>>>
+    ) -> Result<Object<'ctx, T>, Object<'ctx, Throwable>>
     where
         A: Args<'args, ARGS>,
-        Object<'ctx, T, Local<'ctx>>: Raw<Raw = Local<'ctx>> + FromRaw,
+        Object<'ctx, T>: Raw<Raw = Local<'ctx>> + FromRaw,
     {
         let method: Method<false> = resolver::find_method::<false, ARGS, _, A, ()>(ctx, self.as_raw(), "<init>")?;
 
@@ -488,7 +488,7 @@ fn get_field<'ctx, const STATIC: bool, T, R>(
     ctx: &'ctx Context,
     this: &T,
     name: &'static str,
-) -> Result<R, Object<'ctx, Throwable, Local<'ctx>>>
+) -> Result<R, Object<'ctx, Throwable>>
 where
     T: AsRaw,
     T::Raw: StrongRef,
@@ -507,7 +507,7 @@ where
 }
 
 impl<'r, T: ObjectType, R: StrongRef> Object<'r, T, R> {
-    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, Object<'ctx, Throwable, Local<'ctx>>>
+    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, Object<'ctx, Throwable>>
     where
         V: FromRaw + Type,
         V::Raw: GetReturn<'ctx>,
@@ -517,7 +517,7 @@ impl<'r, T: ObjectType, R: StrongRef> Object<'r, T, R> {
 }
 
 impl<'r, T: ObjectType, R: StrongRef> Class<'r, T, R> {
-    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, Object<'ctx, Throwable, Local<'ctx>>>
+    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, Object<'ctx, Throwable>>
     where
         V: FromRaw + Type,
         V::Raw: GetReturn<'ctx>,
@@ -531,7 +531,7 @@ fn set_field<'ctx, const STATIC: bool, T, V>(
     this: &T,
     name: &'static str,
     value: V,
-) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>>
+) -> Result<(), Object<'ctx, Throwable>>
 where
     T: AsRaw,
     T::Raw: StrongRef,
@@ -550,12 +550,7 @@ where
 }
 
 impl<'r, T: ObjectType, R: StrongRef> Object<'r, T, R> {
-    pub fn set_field<'ctx, V>(
-        &self,
-        ctx: &'ctx Context,
-        name: &'static str,
-        value: V,
-    ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>>
+    pub fn set_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str, value: V) -> Result<(), Object<'ctx, Throwable>>
     where
         V: IntoRaw + Type,
         V::Raw: SetArg,
@@ -565,12 +560,7 @@ impl<'r, T: ObjectType, R: StrongRef> Object<'r, T, R> {
 }
 
 impl<'r, T: ObjectType, R: StrongRef> Class<'r, T, R> {
-    pub fn set_field<'ctx, V>(
-        &self,
-        ctx: &'ctx Context,
-        name: &'static str,
-        value: V,
-    ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>>
+    pub fn set_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str, value: V) -> Result<(), Object<'ctx, Throwable>>
     where
         V: IntoRaw + Type,
         V::Raw: SetArg,
