@@ -9,10 +9,10 @@ define_java_class!(JavaExample, "com/github/kr328/typedjni/Example");
 #[no_mangle]
 pub extern "C" fn Java_com_github_kr328_typedjni_Example_nativeFunction<'ctx>(
     ctx: &'ctx Context,
-    _class: Class<Local<'ctx>, JavaExample>,
+    _class: Class<'ctx, JavaExample, Local<'ctx>>,
     value: i32,
     value2: f32,
-    value3: Object<Local<'ctx>, JString>,
+    value3: Object<'ctx, JString, Local<'ctx>>,
 ) {
     println!("value = {}", value);
     println!("value2 = {}", value2);

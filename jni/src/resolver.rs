@@ -97,13 +97,13 @@ fn find_member<
     'ctx,
     C: StrongRef,
     M: Copy,
-    F: FnOnce(Option<*const ()>) -> Result<(M, *const ()), Object<Local<'ctx>, Throwable>>,
+    F: FnOnce(Option<*const ()>) -> Result<(M, *const ()), Object<'ctx, Throwable, Local<'ctx>>>,
 >(
     ctx: &'ctx Context,
     class: &C,
     name: &'static str,
     find: F,
-) -> Result<M, Object<Local<'ctx>, Throwable>> {
+) -> Result<M, Object<'ctx, Throwable, Local<'ctx>>> {
     use_a_slot(|slot| {
         let types_id = find_member::<C, M, F> as *const () as usize;
 
@@ -132,7 +132,7 @@ pub fn find_method<'a, 'ctx, const STATIC: bool, const ARGS: usize, C: StrongRef
     ctx: &'ctx Context,
     class: &C,
     name: &'static str,
-) -> Result<Method<STATIC>, Object<Local<'ctx>, Throwable>> {
+) -> Result<Method<STATIC>, Object<'ctx, Throwable, Local<'ctx>>> {
     find_member(ctx, class, name, |cached| match cached {
         Some(ptr) => unsafe { Ok((Method::from_raw(ptr as _), ptr)) },
         None => {
@@ -151,7 +151,7 @@ pub fn find_field<'a, 'ctx, const STATIC: bool, C: StrongRef, T: Type>(
     ctx: &'ctx Context,
     class: &C,
     name: &'static str,
-) -> Result<Field<STATIC>, Object<Local<'ctx>, Throwable>> {
+) -> Result<Field<STATIC>, Object<'ctx, Throwable, Local<'ctx>>> {
     find_member(ctx, class, name, |cached| match cached {
         Some(ptr) => unsafe { Ok((Field::from_raw(ptr as _), ptr)) },
         None => {

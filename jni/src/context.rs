@@ -43,7 +43,7 @@ impl Context {
         unsafe { (*self.env).Throw.unwrap()(self.as_raw(), *throwable.as_raw()) };
     }
 
-    fn run<R>(&self, f: impl FnOnce() -> R) -> Result<R, Object<Local, Throwable>> {
+    fn run<R>(&self, f: impl FnOnce() -> R) -> Result<R, Object<Throwable, Local>> {
         unsafe {
             let ex = (*self.env).ExceptionOccurred.unwrap()(self.as_raw());
             if !ex.is_null() {
@@ -59,7 +59,7 @@ impl Context {
 
                 (*self.env).ExceptionClear.unwrap()(self.as_raw());
 
-                Err(Object::<Local, Throwable>::from_raw(Local::from_raw(ret_ex)))
+                Err(Object::<Throwable>::from_raw(Local::from_raw(ret_ex)))
             } else {
                 Ok(ret)
             };
@@ -260,7 +260,7 @@ define_member!(Method, jmethodID);
 define_member!(Field, jfieldID);
 
 impl Context {
-    pub fn find_class(&self, name: impl AsRef<CStr>) -> Result<Local, Object<Local, Throwable>> {
+    pub fn find_class(&self, name: impl AsRef<CStr>) -> Result<Local, Object<Throwable, Local>> {
         unsafe { call!(self, FindClass, name.as_ref().as_ptr()).map(|r| Local::from_raw(r)) }
     }
 
@@ -269,7 +269,7 @@ impl Context {
         class: &C,
         name: impl AsRef<CStr>,
         signature: impl AsRef<CStr>,
-    ) -> Result<Method<STATIC>, Object<Local, Throwable>> {
+    ) -> Result<Method<STATIC>, Object<Throwable, Local>> {
         unsafe {
             let raw = if STATIC {
                 call!(
@@ -298,7 +298,7 @@ impl Context {
         class: &C,
         name: impl AsRef<CStr>,
         signature: impl AsRef<CStr>,
-    ) -> Result<Field<STATIC>, Object<Local, Throwable>> {
+    ) -> Result<Field<STATIC>, Object<Throwable, Local>> {
         unsafe {
             let raw = if STATIC {
                 call!(
@@ -403,7 +403,7 @@ pub trait CallResult<'ctx>: Sized + __sealed::Sealed + 'ctx {
         this: &T,
         method: Method<STATIC>,
         args: &[jvalue],
-    ) -> Result<Self, Object<Local<'ctx>, Throwable>>;
+    ) -> Result<Self, Object<'ctx, Throwable, Local<'ctx>>>;
 }
 
 macro_rules! impl_call_result {
@@ -416,7 +416,7 @@ macro_rules! impl_call_result {
                 this: &T,
                 method: Method<STATIC>,
                 args: &[jvalue],
-            ) -> Result<Self, Object<Local<'ctx>, Throwable>> {
+            ) -> Result<Self, Object<'ctx, Throwable, Local<'ctx>>> {
                 if STATIC {
                     call!(ctx, $call_static, *this.as_raw(), method.into_raw(), args.as_ptr())
                 } else {
@@ -445,7 +445,7 @@ impl<'ctx> CallResult<'ctx> for Option<Local<'ctx>> {
         this: &T,
         method: Method<STATIC>,
         args: &[jvalue],
-    ) -> Result<Self, Object<Local<'ctx>, Throwable>> {
+    ) -> Result<Self, Object<'ctx, Throwable, Local<'ctx>>> {
         let ret = if STATIC {
             call!(ctx, CallStaticObjectMethodA, *this.as_raw(), method.into_raw(), args.as_ptr())
         } else {
@@ -492,12 +492,12 @@ impl<'a> CallArgs for &[CallArg<'a>] {
 }
 
 impl Context {
-    pub unsafe fn new_object<'ctx, R: StrongRef, A: CallArgs>(
+    pub unsafe fn new_object<R: StrongRef, A: CallArgs>(
         &self,
         class: &R,
         method: Method<false>,
         args: A,
-    ) -> Result<Local, Object<Local, Throwable>> {
+    ) -> Result<Local, Object<Throwable, Local>> {
         self.ensure_local_capacity(4);
 
         let args = args.as_raw();
@@ -511,7 +511,7 @@ impl Context {
         this: &T,
         method: Method<STATIC>,
         args: A,
-    ) -> Result<R, Object<Local<'ctx>, Throwable>> {
+    ) -> Result<R, Object<'ctx, Throwable, Local<'ctx>>> {
         let args = args.as_raw();
         let args = args.as_ref();
 
@@ -644,27 +644,27 @@ impl Context {
 
 #[doc(hidden)]
 pub trait PrimitiveArrayElement: Sized + __sealed::Sealed {
-    unsafe fn new_array(ctx: &Context, length: i32) -> Result<Local, Object<Local, Throwable>>;
+    unsafe fn new_array(ctx: &Context, length: i32) -> Result<Local, Object<Throwable, Local>>;
 
     unsafe fn get_region<'ctx, T: StrongRef>(
         ctx: &'ctx Context,
         this: &T,
         offset: i32,
         buf: &mut [Self],
-    ) -> Result<(), Object<Local<'ctx>, Throwable>>;
+    ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>>;
 
     unsafe fn set_region<'ctx, T: StrongRef>(
         ctx: &'ctx Context,
         this: &T,
         offset: i32,
         buf: &[Self],
-    ) -> Result<(), Object<Local<'ctx>, Throwable>>;
+    ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>>;
 }
 
 macro_rules! impl_primitive_array_element {
     ($typ:ty, $new:ident, $get_region:ident, $set_region:ident) => {
         impl PrimitiveArrayElement for $typ {
-            unsafe fn new_array(ctx: &Context, length: i32) -> Result<Local, Object<Local, Throwable>> {
+            unsafe fn new_array(ctx: &Context, length: i32) -> Result<Local, Object<Throwable, Local>> {
                 call!(ctx, $new, length).map(|r| Local::from_raw(r))
             }
 
@@ -673,7 +673,7 @@ macro_rules! impl_primitive_array_element {
                 this: &T,
                 offset: i32,
                 buf: &mut [Self],
-            ) -> Result<(), Object<Local<'ctx>, Throwable>> {
+            ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>> {
                 // TODO: throw out of bound exception instead of unwrap
 
                 call!(
@@ -691,7 +691,7 @@ macro_rules! impl_primitive_array_element {
                 this: &T,
                 offset: i32,
                 buf: &[Self],
-            ) -> Result<(), Object<Local<'ctx>, Throwable>> {
+            ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>> {
                 // TODO: throw out of bound exception instead of unwrap
 
                 call!(
@@ -721,7 +721,7 @@ impl Context {
         call_nothrow!(self, GetArrayLength, *object.as_raw())
     }
 
-    pub unsafe fn new_primitive_array<E: PrimitiveArrayElement>(&self, size: i32) -> Result<Local, Object<Local, Throwable>> {
+    pub unsafe fn new_primitive_array<E: PrimitiveArrayElement>(&self, size: i32) -> Result<Local, Object<Throwable, Local>> {
         E::new_array(self, size)
     }
 
@@ -730,7 +730,7 @@ impl Context {
         this: &T,
         offset: i32,
         buf: &mut [E],
-    ) -> Result<(), Object<Local<'ctx>, Throwable>> {
+    ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>> {
         E::get_region(self, this, offset, buf)
     }
 
@@ -739,7 +739,7 @@ impl Context {
         this: &T,
         offset: i32,
         buf: &[E],
-    ) -> Result<(), Object<Local<'ctx>, Throwable>> {
+    ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>> {
         E::set_region(self, this, offset, buf)
     }
 
@@ -748,7 +748,7 @@ impl Context {
         length: i32,
         class: &R1,
         initial: Option<&R2>,
-    ) -> Result<Local, Object<Local, Throwable>> {
+    ) -> Result<Local, Object<Throwable, Local>> {
         self.ensure_local_capacity(4);
 
         call!(
@@ -765,7 +765,7 @@ impl Context {
         &self,
         object: &R,
         index: i32,
-    ) -> Result<Option<Local>, Object<Local, Throwable>> {
+    ) -> Result<Option<Local>, Object<Throwable, Local>> {
         self.ensure_local_capacity(4);
 
         call!(self, GetObjectArrayElement, *object.as_raw(), index).map(|raw| {
@@ -782,7 +782,7 @@ impl Context {
         object: &R1,
         index: i32,
         value: Option<&R2>,
-    ) -> Result<(), Object<Local, Throwable>> {
+    ) -> Result<(), Object<Throwable, Local>> {
         call!(
             self,
             SetObjectArrayElement,
@@ -798,7 +798,7 @@ impl Context {
         &self,
         class: &R,
         natives: [(N, S, *const ()); COUNT],
-    ) -> Result<(), Object<Local, Throwable>> {
+    ) -> Result<(), Object<Throwable, Local>> {
         unsafe {
             let mut funcs = [MaybeUninit::<JNINativeMethod>::uninit(); COUNT];
             for (index, (name, signature, ptr)) in natives.iter().enumerate() {

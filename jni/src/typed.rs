@@ -126,22 +126,22 @@ impl_value_for!(f32);
 impl_value_for!(f64);
 
 #[repr(transparent)]
-pub struct Class<R: Ref, T: ObjectType> {
-    typ: PhantomData<T>,
+pub struct Class<'r, T: ObjectType, R: Ref + 'r = Local<'r>> {
+    typ: PhantomData<&'r T>,
     reference: R,
 }
 
 #[repr(transparent)]
-pub struct Object<R: Ref, T: ObjectType> {
-    typ: PhantomData<T>,
+pub struct Object<'r, T: ObjectType, R: Ref + 'r = Local<'r>> {
+    typ: PhantomData<&'r T>,
     reference: R,
 }
 
-impl<R: Ref, T: ObjectType> Type for Class<R, T> {
+impl<'r, T: ObjectType, R: Ref> Type for Class<'r, T, R> {
     const SIGNATURE: Signature = Signature::Object("java/lang/Class");
 }
 
-impl<R: Ref, T: ObjectType> Type for Object<R, T> {
+impl<'r, T: ObjectType, R: Ref> Type for Object<'r, T, R> {
     const SIGNATURE: Signature = T::SIGNATURE;
 }
 
@@ -175,6 +175,10 @@ fn object_to_string<R: StrongRef>(r: &R) -> String {
     })
 }
 
+fn ref_equal<R1: Ref, R2: Ref>(r1: &R1, r2: &R2) -> bool {
+    Context::with_attached(|ctx| ctx.is_same_object(Some(r1), Some(r2)))
+}
+
 #[derive(Debug)]
 pub struct ClassCastException;
 
@@ -189,29 +193,29 @@ impl std::error::Error for ClassCastException {}
 
 macro_rules! impl_common {
     ($name:ident) => {
-        impl<R: Ref, T: ObjectType> Clone for $name<R, T> {
+        impl<'r, T: ObjectType, R: Ref> Clone for $name<'r, T, R> {
             fn clone(&self) -> Self {
                 unsafe { Self::from_raw(self.as_raw().clone()) }
             }
         }
 
-        impl<R: Ref, T: ObjectType> Raw for $name<R, T> {
+        impl<'r, T: ObjectType, R: Ref> Raw for $name<'r, T, R> {
             type Raw = R;
         }
 
-        impl<R: Ref, T: ObjectType> AsRaw for $name<R, T> {
+        impl<'r, T: ObjectType, R: Ref> AsRaw for $name<'r, T, R> {
             fn as_raw(&self) -> &Self::Raw {
                 &self.reference
             }
         }
 
-        impl<R: Ref, T: ObjectType> IntoRaw for $name<R, T> {
+        impl<'r, T: ObjectType, R: Ref> IntoRaw for $name<'r, T, R> {
             fn into_raw(self) -> Self::Raw {
                 self.reference
             }
         }
 
-        impl<R: Ref, T: ObjectType> FromRaw for $name<R, T> {
+        impl<'r, T: ObjectType, R: Ref> FromRaw for $name<'r, T, R> {
             unsafe fn from_raw(raw: Self::Raw) -> Self {
                 Self {
                     reference: raw,
@@ -220,52 +224,52 @@ macro_rules! impl_common {
             }
         }
 
-        impl<'a, R: Ref, T: ObjectType> Raw for &'a $name<R, T> {
+        impl<'a, 'r, T: ObjectType, R: Ref> Raw for &'a $name<'r, T, R> {
             type Raw = &'a R;
         }
 
-        impl<'a, R: Ref, T: ObjectType> IntoRaw for &'a $name<R, T> {
+        impl<'a, 'r, T: ObjectType, R: Ref> IntoRaw for &'a $name<'r, T, R> {
             fn into_raw(self) -> Self::Raw {
                 &self.reference
             }
         }
 
-        impl<R: StrongRef, T: ObjectType> $name<R, T> {
-            pub fn to_global(&self) -> $name<Global, T> {
+        impl<'r, T: ObjectType, R: StrongRef> $name<'r, T, R> {
+            pub fn to_global(&self) -> $name<'static, T, Global> {
                 unsafe { $name::from_raw(self.as_raw().to_global()) }
             }
 
-            pub fn to_local<'ctx>(&self, ctx: &'ctx Context) -> $name<Local<'ctx>, T> {
+            pub fn to_local<'ctx>(&self, ctx: &'ctx Context) -> $name<'ctx, T, Local<'ctx>> {
                 unsafe { $name::from_raw(self.as_raw().to_local(ctx)) }
             }
 
-            pub fn downgrade_weak<'ctx>(&self) -> $name<Weak, T> {
+            pub fn downgrade_weak(&self) -> $name<'static, T, Weak> {
                 unsafe { $name::from_raw(self.as_raw().downgrade_weak()) }
             }
         }
 
-        impl<R: WeakRef, T: ObjectType> $name<R, T> {
-            pub fn upgrade_global(&self) -> Option<$name<Global, T>> {
+        impl<'r, T: ObjectType, R: WeakRef> $name<'r, T, R> {
+            pub fn upgrade_global(&self) -> Option<$name<'static, T, Global>> {
                 unsafe { self.as_raw().upgrade_global().map(|r| $name::from_raw(r)) }
             }
 
-            pub fn upgrade_local<'ctx>(&self, ctx: &'ctx Context) -> Option<$name<Local<'ctx>, T>> {
+            pub fn upgrade_local<'ctx>(&self, ctx: &'ctx Context) -> Option<$name<'ctx, T, Local<'ctx>>> {
                 unsafe { self.as_raw().upgrade_local(ctx).map(|r| $name::from_raw(r)) }
             }
         }
 
-        impl<R: StrongRef, T: ObjectType> $name<R, T> {
-            pub fn is_instance_of<NR: StrongRef, NT: ObjectType>(&self, ctx: &Context, class: &Class<NR, NT>) -> bool {
+        impl<'r, T: ObjectType, R: StrongRef> $name<'r, T, R> {
+            pub fn is_instance_of<NT: ObjectType, NR: StrongRef>(&self, ctx: &Context, class: &Class<NT, NR>) -> bool {
                 unsafe { ctx.is_instance_of(self.as_raw(), class.as_raw()) }
             }
         }
 
-        impl<R: StrongRef, T: ObjectType> $name<R, T> {
-            pub fn cast<'ctx, NR: StrongRef, NT: ObjectType>(
+        impl<'r, T: ObjectType, R: StrongRef> $name<'r, T, R> {
+            pub fn cast<'ctx, NT: ObjectType, NR: StrongRef>(
                 &self,
                 ctx: &'ctx Context,
-                class: &Class<NR, NT>,
-            ) -> Result<$name<Local<'ctx>, NT>, ClassCastException> {
+                class: &Class<NT, NR>,
+            ) -> Result<$name<'ctx, NT, Local<'ctx>>, ClassCastException> {
                 if self.is_instance_of(ctx, class) {
                     unsafe { Ok($name::from_raw(self.as_raw().to_local(ctx))) }
                 } else {
@@ -274,15 +278,21 @@ macro_rules! impl_common {
             }
         }
 
-        impl<R: StrongRef, T: ObjectType> Debug for $name<R, T> {
+        impl<'r, T: ObjectType, R: StrongRef> Debug for $name<'r, T, R> {
             fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-                f.write_str(&object_to_string(&self.reference))
+                f.write_str(&object_to_string(self.as_raw()))
             }
         }
 
-        impl<R: StrongRef, T: ObjectType> Display for $name<R, T> {
+        impl<'r, T: ObjectType, R: StrongRef> Display for $name<'r, T, R> {
             fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-                f.write_str(&object_to_string(&self.reference))
+                f.write_str(&object_to_string(self.as_raw()))
+            }
+        }
+
+        impl<'r, T: ObjectType, R: Ref> PartialEq for $name<'r, T, R> {
+            fn eq(&self, other: &Self) -> bool {
+                ref_equal(self.as_raw(), other.as_raw())
             }
         }
     };
@@ -291,8 +301,8 @@ macro_rules! impl_common {
 impl_common!(Class);
 impl_common!(Object);
 
-impl<'ctx, T: ObjectType> Class<Local<'ctx>, T> {
-    pub fn find_class(ctx: &'ctx Context) -> Result<Self, Object<Local<'ctx>, Throwable>> {
+impl<'ctx, T: ObjectType> Class<'ctx, T, Local<'ctx>> {
+    pub fn find_class(ctx: &'ctx Context) -> Result<Self, Object<'ctx, Throwable, Local<'ctx>>> {
         fn class_name_of(signature: &Signature) -> Cow<'static, str> {
             match signature {
                 Signature::Void => Cow::Borrowed("V"),
@@ -320,8 +330,8 @@ impl<'ctx, T: ObjectType> Class<Local<'ctx>, T> {
     }
 }
 
-impl<'ctx, R: StrongRef, T: ObjectType> Class<R, T> {
-    pub fn is_assignable_from<SR: StrongRef, ST: ObjectType>(&self, ctx: &Context, superclass: &Class<SR, ST>) -> bool {
+impl<'r, T: ObjectType, R: StrongRef> Class<'r, T, R> {
+    pub fn is_assignable_from<ST: ObjectType, SR: StrongRef>(&self, ctx: &Context, superclass: &Class<ST, SR>) -> bool {
         unsafe { ctx.is_assignable_from(self.as_raw(), superclass.as_raw()) }
     }
 }
@@ -401,7 +411,7 @@ fn call_method<'ctx, 't, 'a, const STATIC: bool, const ARGS: usize, T, R, A>(
     this: &T,
     name: &'static str,
     args: A,
-) -> Result<R, Object<Local<'ctx>, Throwable>>
+) -> Result<R, Object<'ctx, Throwable, Local<'ctx>>>
 where
     T: AsRaw,
     T::Raw: StrongRef,
@@ -423,13 +433,13 @@ where
     unsafe { ctx.call_method(this.as_raw(), method, raw_args).map(|v| R::from_raw(v)) }
 }
 
-impl<R: StrongRef, T: ObjectType> Object<R, T> {
+impl<'r, T: ObjectType, R: StrongRef> Object<'r, T, R> {
     pub fn call_method<'ctx, 'a, const ARGS: usize, A, V>(
         &self,
         ctx: &'ctx Context,
         name: &'static str,
         args: A,
-    ) -> Result<V, Object<Local<'ctx>, Throwable>>
+    ) -> Result<V, Object<'ctx, Throwable, Local<'ctx>>>
     where
         V: Type,
         V: FromRaw,
@@ -440,13 +450,13 @@ impl<R: StrongRef, T: ObjectType> Object<R, T> {
     }
 }
 
-impl<R: StrongRef, T: ObjectType> Class<R, T> {
+impl<'r, T: ObjectType, R: StrongRef> Class<'r, T, R> {
     pub fn call_method<'ctx, 'a, const ARGS: usize, V, A>(
         &self,
         ctx: &'ctx Context,
         name: &'static str,
         args: A,
-    ) -> Result<V, Object<Local<'ctx>, Throwable>>
+    ) -> Result<V, Object<'ctx, Throwable, Local<'ctx>>>
     where
         V: Type,
         V: FromRaw,
@@ -457,15 +467,15 @@ impl<R: StrongRef, T: ObjectType> Class<R, T> {
     }
 }
 
-impl<R: StrongRef, T: ObjectType> Class<R, T> {
+impl<'r, T: ObjectType, R: StrongRef> Class<'r, T, R> {
     pub fn new_object<'ctx, 'args, const ARGS: usize, A>(
         &self,
         ctx: &'ctx Context,
         args: A,
-    ) -> Result<Object<Local<'ctx>, T>, Object<Local<'ctx>, Throwable>>
+    ) -> Result<Object<'ctx, T, Local<'ctx>>, Object<'ctx, Throwable, Local<'ctx>>>
     where
         A: Args<'args, ARGS>,
-        Object<Local<'ctx>, T>: Raw<Raw = Local<'ctx>> + FromRaw,
+        Object<'ctx, T, Local<'ctx>>: Raw<Raw = Local<'ctx>> + FromRaw,
     {
         let method: Method<false> = resolver::find_method::<false, ARGS, _, A, ()>(ctx, self.as_raw(), "<init>")?;
 
@@ -478,7 +488,7 @@ fn get_field<'ctx, const STATIC: bool, T, R>(
     ctx: &'ctx Context,
     this: &T,
     name: &'static str,
-) -> Result<R, Object<Local<'ctx>, Throwable>>
+) -> Result<R, Object<'ctx, Throwable, Local<'ctx>>>
 where
     T: AsRaw,
     T::Raw: StrongRef,
@@ -496,8 +506,8 @@ where
     unsafe { Ok(R::from_raw(ctx.get_field(this.as_raw(), field))) }
 }
 
-impl<R: StrongRef, T: ObjectType> Object<R, T> {
-    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, Object<Local<'ctx>, Throwable>>
+impl<'r, T: ObjectType, R: StrongRef> Object<'r, T, R> {
+    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, Object<'ctx, Throwable, Local<'ctx>>>
     where
         V: FromRaw + Type,
         V::Raw: GetReturn<'ctx>,
@@ -506,8 +516,8 @@ impl<R: StrongRef, T: ObjectType> Object<R, T> {
     }
 }
 
-impl<R: StrongRef, T: ObjectType> Class<R, T> {
-    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, Object<Local<'ctx>, Throwable>>
+impl<'r, T: ObjectType, R: StrongRef> Class<'r, T, R> {
+    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, Object<'ctx, Throwable, Local<'ctx>>>
     where
         V: FromRaw + Type,
         V::Raw: GetReturn<'ctx>,
@@ -521,7 +531,7 @@ fn set_field<'ctx, const STATIC: bool, T, V>(
     this: &T,
     name: &'static str,
     value: V,
-) -> Result<(), Object<Local<'ctx>, Throwable>>
+) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>>
 where
     T: AsRaw,
     T::Raw: StrongRef,
@@ -539,13 +549,13 @@ where
     unsafe { Ok(ctx.set_field(this.as_raw(), field, value.into_raw())) }
 }
 
-impl<R: StrongRef, T: ObjectType> Object<R, T> {
+impl<'r, T: ObjectType, R: StrongRef> Object<'r, T, R> {
     pub fn set_field<'ctx, V>(
         &self,
         ctx: &'ctx Context,
         name: &'static str,
         value: V,
-    ) -> Result<(), Object<Local<'ctx>, Throwable>>
+    ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>>
     where
         V: IntoRaw + Type,
         V::Raw: SetArg,
@@ -554,13 +564,13 @@ impl<R: StrongRef, T: ObjectType> Object<R, T> {
     }
 }
 
-impl<R: StrongRef, T: ObjectType> Class<R, T> {
+impl<'r, T: ObjectType, R: StrongRef> Class<'r, T, R> {
     pub fn set_field<'ctx, V>(
         &self,
         ctx: &'ctx Context,
         name: &'static str,
         value: V,
-    ) -> Result<(), Object<Local<'ctx>, Throwable>>
+    ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>>
     where
         V: IntoRaw + Type,
         V::Raw: SetArg,

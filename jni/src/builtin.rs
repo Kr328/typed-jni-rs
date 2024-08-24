@@ -16,7 +16,7 @@ impl Type for Throwable {
 impl ObjectType for Throwable {}
 
 #[cfg(feature = "std")]
-impl<R: super::StrongRef> std::error::Error for Object<R, Throwable> {}
+impl<'r, R: super::StrongRef> std::error::Error for Object<'r, Throwable, R> {}
 
 pub struct JString;
 
@@ -26,13 +26,13 @@ impl Type for JString {
 
 impl ObjectType for JString {}
 
-impl<R: StrongRef> Object<R, JString> {
+impl<'r, R: StrongRef> Object<'r, JString, R> {
     pub fn get_string(&self, ctx: &Context) -> String {
         unsafe { ctx.get_string(self.as_raw()) }
     }
 }
 
-impl<'ctx> Object<Local<'ctx>, JString> {
+impl<'ctx> Object<'ctx, JString, Local<'ctx>> {
     pub fn new_string(ctx: &'ctx Context, s: impl AsRef<str>) -> Self {
         unsafe { Self::from_raw(ctx.new_string(s)) }
     }
@@ -46,15 +46,19 @@ impl<T: Type> Type for Array<T> {
 
 impl<T: Type> ObjectType for Array<T> {}
 
-impl<'ctx, T: Type> Object<Local<'ctx>, Array<T>> {
-    pub fn primitive(ctx: &'ctx Context, size: i32) -> Result<Self, Object<Local<'ctx>, Throwable>>
+impl<'ctx, T: Type> Object<'ctx, Array<T>, Local<'ctx>> {
+    pub fn primitive(ctx: &'ctx Context, size: i32) -> Result<Self, Object<'ctx, Throwable, Local<'ctx>>>
     where
         T: PrimitiveType + PrimitiveArrayElement,
     {
         unsafe { ctx.new_primitive_array::<T>(size).map(|r| Self::from_raw(r)) }
     }
 
-    pub fn new<CR: StrongRef>(ctx: &'ctx Context, size: i32, class: &Class<CR, T>) -> Result<Self, Object<Local<'ctx>, Throwable>>
+    pub fn new<CR: StrongRef>(
+        ctx: &'ctx Context,
+        size: i32,
+        class: &Class<T, CR>,
+    ) -> Result<Self, Object<'ctx, Throwable, Local<'ctx>>>
     where
         T: ObjectType,
     {
@@ -67,9 +71,9 @@ impl<'ctx, T: Type> Object<Local<'ctx>, Array<T>> {
     pub fn with_initial<'a, CR: StrongRef, OR: StrongRef>(
         ctx: &'ctx Context,
         size: i32,
-        class: &Class<CR, T>,
-        initial: &Object<OR, T>,
-    ) -> Result<Self, Object<Local<'ctx>, Throwable>>
+        class: &Class<T, CR>,
+        initial: &Object<T, OR>,
+    ) -> Result<Self, Object<'ctx, Throwable, Local<'ctx>>>
     where
         T: ObjectType,
     {
@@ -80,19 +84,24 @@ impl<'ctx, T: Type> Object<Local<'ctx>, Array<T>> {
     }
 }
 
-impl<R: StrongRef, T: Type> Object<R, Array<T>> {
+impl<'r, T: Type, R: StrongRef> Object<'r, Array<T>, R> {
     pub fn length(&self, ctx: &Context) -> i32 {
         unsafe { ctx.get_array_length(self.as_raw()) }
     }
 
-    pub fn get_region<'ctx>(&self, ctx: &'ctx Context, offset: i32, buf: &mut [T]) -> Result<(), Object<Local<'ctx>, Throwable>>
+    pub fn get_region<'ctx>(
+        &self,
+        ctx: &'ctx Context,
+        offset: i32,
+        buf: &mut [T],
+    ) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>>
     where
         T: PrimitiveType + PrimitiveArrayElement,
     {
         unsafe { ctx.get_primitive_array_region(self.as_raw(), offset, buf) }
     }
 
-    pub fn set_region<'ctx>(&self, ctx: &'ctx Context, offset: i32, buf: &[T]) -> Result<(), Object<Local<'ctx>, Throwable>>
+    pub fn set_region<'ctx>(&self, ctx: &'ctx Context, offset: i32, buf: &[T]) -> Result<(), Object<'ctx, Throwable, Local<'ctx>>>
     where
         T: PrimitiveType + PrimitiveArrayElement,
     {
@@ -103,7 +112,7 @@ impl<R: StrongRef, T: Type> Object<R, Array<T>> {
         &self,
         ctx: &'ctx Context,
         index: i32,
-    ) -> Result<Option<Object<Local<'ctx>, T>>, Object<Local<'ctx>, Throwable>>
+    ) -> Result<Option<Object<'ctx, T, Local<'ctx>>>, Object<'ctx, Throwable, Local<'ctx>>>
     where
         T: ObjectType,
     {
@@ -114,8 +123,8 @@ impl<R: StrongRef, T: Type> Object<R, Array<T>> {
         &self,
         ctx: &'a Context,
         index: i32,
-        object: Option<&'a Object<RV, T>>,
-    ) -> Result<(), Object<Local<'a>, Throwable>>
+        object: Option<&'a Object<T, RV>>,
+    ) -> Result<(), Object<'a, Throwable, Local<'a>>>
     where
         T: ObjectType,
     {
