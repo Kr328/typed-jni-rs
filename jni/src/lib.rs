@@ -17,5 +17,17 @@ pub use context::*;
 pub use raw::*;
 pub use reference::*;
 pub use typed::*;
-pub use typed_jni_macros::*;
 pub use vm::attach_vm;
+
+#[macro_export]
+macro_rules! define_java_class {
+    ($name:ident, $class:literal) => {
+        pub struct $name;
+
+        impl ::typed_jni::Type for $name {
+            const SIGNATURE: ::typed_jni::Signature = ::typed_jni::Signature::Object($class);
+        }
+
+        impl ::typed_jni::ObjectType for $name {}
+    };
+}
