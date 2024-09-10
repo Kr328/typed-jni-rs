@@ -1,7 +1,7 @@
 use std::{process::Stdio, ptr, sync::OnceLock};
 
 use jni::JavaVM;
-use typed_jni::{define_java_class, Array, AsRaw, Class, Context, JString, Nullable, Object};
+use typed_jni::{define_java_class, Array, AsRaw, Class, Context, JString, Object};
 
 fn with_java_vm<R, F: FnOnce(&Context) -> R>(f: F) -> R {
     static VM: OnceLock<JavaVM> = OnceLock::new();
@@ -278,11 +278,11 @@ fn test_return_object() {
             ctx: &'ctx Context,
             _: Object<'ctx, JavaRustNativeTest>,
             empty: bool,
-        ) -> Nullable<Object<'ctx, JString>> {
+        ) -> Option<Object<'ctx, JString>> {
             if empty {
-                Nullable::null()
+                None
             } else {
-                Nullable::value(Object::new_string(ctx, "Some"))
+                Some(Object::new_string(ctx, "Some"))
             }
         }
 

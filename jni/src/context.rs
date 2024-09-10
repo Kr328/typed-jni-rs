@@ -1,14 +1,19 @@
 #![allow(dead_code)]
 
 use alloc::{string::String, vec::Vec};
-use core::{ffi::CStr, marker::PhantomData, mem::MaybeUninit, ptr::null_mut};
+use core::{
+    ffi::CStr,
+    marker::PhantomData,
+    mem::MaybeUninit,
+    ptr::{null_mut, NonNull},
+};
 
 use crate::{
     builtin::Throwable,
     reference::{Local, Ref, StrongRef},
     sys::{
-        jfieldID, jmethodID, jobject, jvalue, jweak, JNIEnv, JNINativeMethod, JNI_ABORT, JNI_COMMIT, JNI_FALSE, JNI_OK,
-        JNI_VERSION_1_4,
+        jfieldID, jmethodID, jobject, jvalue, jweak, JNIEnv, JNINativeInterface_, JNINativeMethod, JNI_ABORT, JNI_COMMIT,
+        JNI_FALSE, JNI_OK, JNI_VERSION_1_4,
     },
     typed::Object,
     vm, AsRaw, FromRaw, IntoRaw, Raw,
@@ -20,47 +25,47 @@ mod __sealed {
 
 macro_rules! call {
     ($this:ident, $func_name:ident) => {
-        { $this.run(|| { ((*($this.env)).$func_name.unwrap())(&$this.env as *const _ as *mut _) }) }
+        { $this.run(|| { $this.env.as_ref().$func_name.unwrap()(&$this.env as *const _ as *mut _) }) }
     };
     ($this:ident, $func_name:ident, $($args:expr),*) => {
-        { $this.run(|| { ((*($this.env)).$func_name.unwrap())(&$this.env as *const _ as *mut _, $($args),*) }) }
+        { $this.run(|| { $this.env.as_ref().$func_name.unwrap()(&$this.env as *const _ as *mut _, $($args),*) }) }
     };
 }
 
 macro_rules! call_nothrow {
     ($this:ident, $func_name:ident) => {
-        { $this.run_no_throw(|| { ((*($this.env)).$func_name.unwrap())(&$this.env as *const _ as *mut _) }) }
+        { $this.run_no_throw(|| { $this.env.as_ref().$func_name.unwrap()(&$this.env as *const _ as *mut _) }) }
     };
     ($this:ident, $func_name:ident, $($args:expr),*) => {
-        { $this.run_no_throw(|| { ((*($this.env)).$func_name.unwrap())(&$this.env as *const _ as *mut _, $($args),*) }) }
+        { $this.run_no_throw(|| { $this.env.as_ref().$func_name.unwrap()(&$this.env as *const _ as *mut _, $($args),*) }) }
     };
 }
 
 #[repr(transparent)]
 pub struct Context {
-    env: JNIEnv,
+    env: NonNull<JNINativeInterface_>,
 }
 
 impl Context {
     pub unsafe fn throw<R: StrongRef>(&self, throwable: &R) {
-        unsafe { (*self.env).Throw.unwrap()(self.as_raw(), *throwable.as_raw()) };
+        unsafe { self.env.as_ref().Throw.unwrap()(self.as_raw(), *throwable.as_raw()) };
     }
 
     fn run<R>(&self, f: impl FnOnce() -> R) -> Result<R, Object<Throwable>> {
         unsafe {
-            let ex = (*self.env).ExceptionOccurred.unwrap()(self.as_raw());
+            let ex = self.env.as_ref().ExceptionOccurred.unwrap()(self.as_raw());
             if !ex.is_null() {
-                (*self.env).ExceptionClear.unwrap()(self.as_raw());
+                self.env.as_ref().ExceptionClear.unwrap()(self.as_raw());
             }
 
             let ret = f();
 
-            let ret_ex = (*self.env).ExceptionOccurred.unwrap()(self.as_raw());
+            let ret_ex = self.env.as_ref().ExceptionOccurred.unwrap()(self.as_raw());
             let ret = if !ret_ex.is_null() {
                 #[cfg(debug_assertions)]
-                (*self.env).ExceptionDescribe.unwrap()(self.as_raw());
+                self.env.as_ref().ExceptionDescribe.unwrap()(self.as_raw());
 
-                (*self.env).ExceptionClear.unwrap()(self.as_raw());
+                self.env.as_ref().ExceptionClear.unwrap()(self.as_raw());
 
                 Err(Object::<Throwable>::from_raw(Local::from_raw(ret_ex)))
             } else {
@@ -68,9 +73,9 @@ impl Context {
             };
 
             if !ex.is_null() {
-                (*self.env).Throw.unwrap()(self.as_raw(), ex);
+                self.env.as_ref().Throw.unwrap()(self.as_raw(), ex);
 
-                (*self.env).DeleteLocalRef.unwrap()(self.as_raw(), ex);
+                self.env.as_ref().DeleteLocalRef.unwrap()(self.as_raw(), ex);
             }
 
             ret

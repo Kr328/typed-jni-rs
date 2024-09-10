@@ -1,8 +1,8 @@
-use core::marker::PhantomData;
+use core::{marker::PhantomData, ptr::NonNull};
 
 use crate::{
     context::Context,
-    sys::{jobject, jweak},
+    sys::{_jobject, jobject},
     AsRaw, FromRaw, IntoRaw, Raw,
 };
 
@@ -60,23 +60,17 @@ pub trait WeakRef: Ref {
 
 #[repr(transparent)]
 pub struct Global {
-    raw: jobject,
+    raw: NonNull<_jobject>,
 }
 
 unsafe impl Send for Global {}
 unsafe impl Sync for Global {}
 
-impl Global {
-    pub unsafe fn from_raw(raw: jobject) -> Self {
-        Self { raw }
-    }
-}
-
 impl Clone for Global {
     fn clone(&self) -> Self {
         unsafe {
             Context::with_attached(|ctx| Self {
-                raw: ctx.new_global_ref(self.raw),
+                raw: NonNull::new(ctx.new_global_ref(self.raw.as_ptr())).unwrap(),
             })
         }
     }
@@ -84,7 +78,7 @@ impl Clone for Global {
 
 impl Drop for Global {
     fn drop(&mut self) {
-        unsafe { Context::with_attached(|ctx| ctx.delete_global_ref(self.raw)) }
+        unsafe { Context::with_attached(|ctx| ctx.delete_global_ref(self.raw.as_ptr())) }
     }
 }
 
@@ -92,13 +86,15 @@ impl __sealed::Sealed for Global {}
 
 impl AsRaw for Global {
     fn as_raw(&self) -> &Self::Raw {
-        &self.raw
+        unsafe { core::mem::transmute(&self.raw) }
     }
 }
 
 impl FromRaw for Global {
     unsafe fn from_raw(raw: Self::Raw) -> Self {
-        Self { raw }
+        Self {
+            raw: NonNull::new(raw).unwrap(),
+        }
     }
 }
 
@@ -108,7 +104,7 @@ impl IntoRaw for Global {
 
         core::mem::forget(self);
 
-        r
+        r.as_ptr()
     }
 }
 
@@ -120,14 +116,16 @@ impl StrongRef for Global {}
 
 #[repr(transparent)]
 pub struct Local<'ctx> {
-    raw: jobject,
+    raw: NonNull<_jobject>,
     _ctx: PhantomData<&'ctx Context>,
 }
 
 impl<'ctx> Clone for Local<'ctx> {
     fn clone(&self) -> Self {
+        let raw = Context::with_current(|ctx| unsafe { ctx.new_local_ref(self.raw.as_ptr()) }).unwrap();
+
         Local {
-            raw: Context::with_current(|ctx| unsafe { ctx.new_local_ref(self.raw) }).unwrap(),
+            raw: NonNull::new(raw).unwrap(),
             _ctx: PhantomData,
         }
     }
@@ -135,19 +133,22 @@ impl<'ctx> Clone for Local<'ctx> {
 
 impl<'ctx> Drop for Local<'ctx> {
     fn drop(&mut self) {
-        Context::with_current(|ctx| unsafe { ctx.delete_local_ref(self.raw) }).unwrap();
+        Context::with_current(|ctx| unsafe { ctx.delete_local_ref(self.raw.as_ptr()) }).unwrap();
     }
 }
 
 impl<'ctx> AsRaw for Local<'ctx> {
     fn as_raw(&self) -> &Self::Raw {
-        &self.raw
+        unsafe { core::mem::transmute(&self.raw) }
     }
 }
 
 impl<'ctx> FromRaw for Local<'ctx> {
     unsafe fn from_raw(raw: Self::Raw) -> Self {
-        Self { raw, _ctx: PhantomData }
+        Self {
+            raw: NonNull::new(raw).unwrap(),
+            _ctx: PhantomData,
+        }
     }
 }
 
@@ -157,7 +158,7 @@ impl<'ctx> IntoRaw for Local<'ctx> {
 
         core::mem::forget(self);
 
-        r
+        r.as_ptr()
     }
 }
 
@@ -171,23 +172,17 @@ impl<'ctx> StrongRef for Local<'ctx> {}
 
 #[repr(transparent)]
 pub struct Weak {
-    raw: jweak,
+    raw: NonNull<_jobject>,
 }
 
 unsafe impl Send for Weak {}
 unsafe impl Sync for Weak {}
 
-impl Weak {
-    pub unsafe fn from_raw(raw: jweak) -> Self {
-        Self { raw }
-    }
-}
-
 impl Clone for Weak {
     fn clone(&self) -> Self {
         unsafe {
             Context::with_attached(|ctx| Self {
-                raw: ctx.new_weak_global_ref(self.raw),
+                raw: NonNull::new(ctx.new_weak_global_ref(self.raw.as_ptr())).unwrap(),
             })
         }
     }
@@ -195,19 +190,21 @@ impl Clone for Weak {
 
 impl Drop for Weak {
     fn drop(&mut self) {
-        unsafe { Context::with_attached(|ctx| ctx.delete_weak_global_ref(self.raw)) }
+        unsafe { Context::with_attached(|ctx| ctx.delete_weak_global_ref(self.raw.as_ptr())) }
     }
 }
 
 impl AsRaw for Weak {
     fn as_raw(&self) -> &Self::Raw {
-        &self.raw
+        unsafe { core::mem::transmute(&self.raw) }
     }
 }
 
 impl FromRaw for Weak {
     unsafe fn from_raw(raw: Self::Raw) -> Self {
-        Self { raw }
+        Self {
+            raw: NonNull::new(raw).unwrap(),
+        }
     }
 }
 
@@ -217,7 +214,7 @@ impl IntoRaw for Weak {
 
         core::mem::forget(self);
 
-        r
+        r.as_ptr()
     }
 }
 

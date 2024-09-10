@@ -5,7 +5,6 @@ extern crate core;
 
 mod builtin;
 mod context;
-mod ffisafe;
 mod raw;
 mod reference;
 mod resolver;
@@ -15,7 +14,6 @@ mod vm;
 
 pub use builtin::*;
 pub use context::*;
-pub use ffisafe::*;
 pub use raw::*;
 pub use reference::*;
 pub use typed::*;
