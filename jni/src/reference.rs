@@ -170,6 +170,7 @@ impl<'ctx> __sealed::Sealed for Local<'ctx> {}
 
 impl<'ctx> StrongRef for Local<'ctx> {}
 
+#[repr(transparent)]
 pub struct Trampoline<'ctx> {
     raw: NonNull<_jobject>,
     _ctx: PhantomData<&'ctx Context>,
