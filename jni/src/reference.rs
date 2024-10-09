@@ -10,7 +10,7 @@ mod __sealed {
     pub trait Sealed {}
 }
 
-pub trait Ref: Raw<Raw = jobject> + AsRaw + IntoRaw + FromRaw + Sized + Clone + __sealed::Sealed {
+pub trait Ref: Raw<Raw = jobject> + AsRaw + IntoRaw + Sized + __sealed::Sealed {
     const KIND: &'static str;
 }
 
@@ -169,6 +169,31 @@ impl<'ctx> Ref for Local<'ctx> {
 impl<'ctx> __sealed::Sealed for Local<'ctx> {}
 
 impl<'ctx> StrongRef for Local<'ctx> {}
+
+pub struct Trampoline<'ctx> {
+    raw: NonNull<_jobject>,
+    _ctx: PhantomData<&'ctx Context>,
+}
+
+impl<'ctx> Ref for Trampoline<'ctx> {
+    const KIND: &'static str = "Trampoline";
+}
+
+impl<'ctx> StrongRef for Trampoline<'ctx> {}
+
+impl<'ctx> AsRaw for Trampoline<'ctx> {
+    fn as_raw(&self) -> &Self::Raw {
+        unsafe { core::mem::transmute(&self.raw) }
+    }
+}
+
+impl<'ctx> IntoRaw for Trampoline<'ctx> {
+    fn into_raw(self) -> Self::Raw {
+        self.raw.as_ptr()
+    }
+}
+
+impl<'ctx> __sealed::Sealed for Trampoline<'ctx> {}
 
 #[repr(transparent)]
 pub struct Weak {

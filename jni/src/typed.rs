@@ -193,7 +193,7 @@ impl std::error::Error for ClassCastException {}
 
 macro_rules! impl_common {
     ($name:ident) => {
-        impl<'r, T: ObjectType, R: Ref> Clone for $name<'r, T, R> {
+        impl<'r, T: ObjectType, R: Ref + Clone> Clone for $name<'r, T, R> {
             fn clone(&self) -> Self {
                 unsafe { Self::from_raw(self.as_raw().clone()) }
             }
