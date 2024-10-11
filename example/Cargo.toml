@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-typed-jni = { path = "../jni" }
+typed-jni = { path = "../jni", default-features = false }
 
 libc = "0.2"
 libc_alloc = "1.0"

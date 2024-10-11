@@ -3,6 +3,7 @@
 extern crate alloc;
 extern crate core;
 
+mod args;
 mod builtin;
 mod context;
 mod raw;
@@ -12,6 +13,7 @@ pub mod sys;
 mod typed;
 mod vm;
 
+pub use args::*;
 pub use builtin::*;
 pub use context::*;
 pub use raw::*;

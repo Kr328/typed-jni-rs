@@ -2,7 +2,7 @@ use std::{path::Path, process::Stdio};
 
 use example::JavaExample;
 use jni::JavaVM;
-use typed_jni::{define_java_class, Class, Context, JString, Object, Type};
+use typed_jni::{define_java_class, Context, JString, LocalClass, LocalObject, NoArgs, Type};
 
 define_java_class!(JavaSystem, "java.lang.System");
 define_java_class!(JavaPrintStream, "java.io.PrintStream");
@@ -58,22 +58,26 @@ fn main() {
         drop(c_str);
     }
 
-    let c_system = Class::<JavaSystem>::find_class(&ctx).unwrap();
-    let o_out: Object<JavaPrintStream> = Option::unwrap(c_system.get_field(&ctx, "out").unwrap());
+    let c_system = LocalClass::<JavaSystem>::find_class(&ctx).unwrap();
+    let o_out: LocalObject<JavaPrintStream> = c_system.get_field(&ctx, "out").unwrap();
 
-    let _: () = o_out
-        .call_method(&ctx, "println", &Object::<JString>::new_string(&ctx, "Hello World!"))
+    o_out
+        .call_method::<(), _>(&ctx, "println", &LocalObject::<JString>::new_string(&ctx, "Hello World!"))
         .unwrap();
 
-    let _: () = o_out
-        .call_method(&ctx, "println", &Object::<JString>::new_string(&ctx, "Hello World!!!!"))
+    o_out
+        .call_method::<(), _>(&ctx, "println", &LocalObject::<JString>::new_string(&ctx, "Hello World!!!!"))
         .unwrap();
 
-    let _: () = o_out
-        .call_method(&ctx, "println", &Object::<JString>::new_string(&ctx, "Hello World!!!!!!!!!"))
+    o_out
+        .call_method::<(), _>(
+            &ctx,
+            "println",
+            &LocalObject::<JString>::new_string(&ctx, "Hello World!!!!!!!!!"),
+        )
         .unwrap();
 
-    let v = Class::<JavaExample>::find_class(ctx).unwrap();
+    let v = LocalClass::<JavaExample>::find_class(ctx).unwrap();
 
-    let _: () = v.call_method(&ctx, "run", ()).unwrap();
+    let _: () = v.call_method(&ctx, "run", NoArgs).unwrap();
 }

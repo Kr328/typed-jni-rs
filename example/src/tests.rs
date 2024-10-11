@@ -1,7 +1,10 @@
 use std::{process::Stdio, ptr, sync::OnceLock};
 
 use jni::JavaVM;
-use typed_jni::{define_java_class, Array, AsRaw, Class, Context, JString, Object};
+use typed_jni::{
+    define_java_class, Array, AsRaw, Class, Context, JString, LocalClass, LocalObject, NoArgs, Object, TrampolineClass,
+    TrampolineObject,
+};
 
 fn with_java_vm<R, F: FnOnce(&Context) -> R>(f: F) -> R {
     static VM: OnceLock<JavaVM> = OnceLock::new();
@@ -34,7 +37,7 @@ fn test_convert_string() {
                 let response = reqwest::get(TEST_CONTENT_URL).await.unwrap();
                 let content = response.text().await.unwrap();
 
-                let o_string: Object<JString> = Object::new_string(ctx, &content);
+                let o_string: LocalObject<JString> = Object::new_string(ctx, &content);
                 let r_content: String = o_string.get_string(ctx);
 
                 assert_eq!(content, r_content);
@@ -53,17 +56,18 @@ fn test_string_array() {
             })
             .collect::<Vec<_>>();
 
-        let o_array = Object::<Array<JString>>::new(ctx, array.len() as _, &Class::<JString>::find_class(ctx).unwrap()).unwrap();
+        let o_array =
+            LocalObject::<Array<JString>>::new(ctx, array.len() as _, &LocalClass::<JString>::find_class(ctx).unwrap()).unwrap();
         for (index, s) in array.iter().enumerate() {
             o_array
-                .set_element(ctx, index as _, Some(&Object::<JString>::new_string(ctx, s)))
+                .set_element(ctx, index as _, Some(&LocalObject::<JString>::new_string(ctx, s)))
                 .unwrap();
         }
 
         let r_length = o_array.length(ctx);
         let mut r_array = Vec::with_capacity(r_length as _);
         for index in 0..r_length {
-            let s: Option<Object<JString>> = o_array.get_element(ctx, index).unwrap();
+            let s: Option<LocalObject<JString>> = o_array.get_element(ctx, index).unwrap();
 
             r_array.push(s.unwrap().get_string(ctx));
         }
@@ -78,7 +82,7 @@ fn test_bool_array() {
         let length: usize = rand::random::<usize>() % 128;
         let array: Vec<bool> = (0..length).map(|_| rand::random::<bool>()).collect();
 
-        let o_array = Object::<Array<bool>>::primitive(ctx, array.len() as _).unwrap();
+        let o_array = LocalObject::<Array<bool>>::new_primitive(ctx, array.len() as _).unwrap();
         o_array.set_region(ctx, 0, &array).unwrap();
 
         let mut r_array = vec![false; array.len()];
@@ -95,7 +99,7 @@ define_java_class!(JavaURLClassLoader, "java.net.URLClassLoader");
 
 struct UrlClassLoader<'ctx> {
     _class_path: tempdir::TempDir,
-    loader: Object<'ctx, JavaURLClassLoader>,
+    loader: LocalObject<'ctx, JavaURLClassLoader>,
 }
 
 fn compile_file_and_load_classes<'ctx>(ctx: &'ctx Context, public_class_name: &str, content: &str) -> UrlClassLoader<'ctx> {
@@ -118,14 +122,14 @@ fn compile_file_and_load_classes<'ctx>(ctx: &'ctx Context, public_class_name: &s
         panic!("compile java failed");
     }
 
-    let c_file: Class<JavaFile> = Class::find_class(ctx).unwrap();
-    let o_file: Object<JavaFile> = c_file
-        .new_object(ctx, &Object::<JString>::new_string(ctx, temp.path().to_str().unwrap()))
+    let c_file: LocalClass<JavaFile> = Class::find_class(ctx).unwrap();
+    let o_file: LocalObject<JavaFile> = c_file
+        .new_object(ctx, &LocalObject::<JString>::new_string(ctx, temp.path().to_str().unwrap()))
         .unwrap();
-    let o_uri: Object<JavaURI> = Option::unwrap(o_file.call_method(ctx, "toURI", ()).unwrap());
-    let o_url: Object<JavaURL> = Option::unwrap(o_uri.call_method(ctx, "toURL", ()).unwrap());
-    let o_urls: Object<Array<JavaURL>> = Object::with_initial(ctx, 1, &Class::find_class(ctx).unwrap(), &o_url).unwrap();
-    let o_class_loader = Class::<JavaURLClassLoader>::find_class(ctx)
+    let o_uri: LocalObject<JavaURI> = o_file.call_method(ctx, "toURI", NoArgs).unwrap();
+    let o_url: LocalObject<JavaURL> = o_uri.call_method(ctx, "toURL", NoArgs).unwrap();
+    let o_urls: LocalObject<Array<JavaURL>> = Object::new_with_initial(ctx, 1, &Class::find_class(ctx).unwrap(), &o_url).unwrap();
+    let o_class_loader = LocalClass::<JavaURLClassLoader>::find_class(ctx)
         .unwrap()
         .new_object(ctx, &o_urls)
         .unwrap();
@@ -156,15 +160,13 @@ fn test_inner_class() {
         define_java_class!(JavaRustTest, "RustTest");
         define_java_class!(JavaInnerClass, "RustTest$InnerClass");
 
-        let c_test: Class<JavaRustTest> = Option::unwrap(
-            loader
-                .loader
-                .call_method(ctx, "loadClass", &Object::<JString>::new_string(ctx, "RustTest"))
-                .unwrap(),
-        );
+        let c_test: LocalClass<JavaRustTest> = loader
+            .loader
+            .call_method(ctx, "loadClass", &LocalObject::<JString>::new_string(ctx, "RustTest"))
+            .unwrap();
 
-        let o_inner: Object<JavaInnerClass> = Option::unwrap(c_test.get_field(ctx, "INNER").unwrap());
-        let value: Object<JString> = Option::unwrap(o_inner.get_field(ctx, "VALUE").unwrap());
+        let o_inner: LocalObject<JavaInnerClass> = c_test.get_field(ctx, "INNER").unwrap();
+        let value: LocalObject<JString> = o_inner.get_field(ctx, "VALUE").unwrap();
 
         assert_eq!("STRING FROM INNER CLASS", value.get_string(ctx));
     });
@@ -191,22 +193,20 @@ fn test_register_native() {
 
         extern "C" fn call_native<'ctx>(
             ctx: &'ctx Context,
-            _: Object<'ctx, JavaRustNativeTest>,
+            _: TrampolineClass<'ctx, JavaRustNativeTest>,
             value: i32,
             value2: f32,
-            value3: Object<'ctx, JString>,
+            value3: TrampolineObject<'ctx, JString>,
         ) -> i32 {
             let v = value + value2 as i32 + value3.get_string(ctx).len() as i32;
 
             v
         }
 
-        let c_test: Class<JavaRustNativeTest> = Option::unwrap(
-            loader
-                .loader
-                .call_method(ctx, "loadClass", &Object::new_string(ctx, "RustNativeTest"))
-                .unwrap(),
-        );
+        let c_test: LocalClass<JavaRustNativeTest> = loader
+            .loader
+            .call_method(ctx, "loadClass", &Object::new_string(ctx, "RustNativeTest"))
+            .unwrap();
 
         unsafe {
             ctx.register_natives(
@@ -218,10 +218,10 @@ fn test_register_native() {
 
         assert_eq!(
             c_test
-                .call_method::<3, i32, _>(
+                .call_method::<i32, _>(
                     ctx,
                     "callNative",
-                    (114514, 12.78f32, &Object::<JString>::new_string(ctx, "114514"))
+                    (114514, 12.78f32, &LocalObject::<JString>::new_string(ctx, "114514"))
                 )
                 .unwrap(),
             114514 + 12 + 6
@@ -234,7 +234,7 @@ fn test_boolean_parameter() {
     with_java_vm(|ctx| {
         define_java_class!(JavaAtomicBoolean, "java.util.concurrent.atomic.AtomicBoolean");
 
-        let c_atomic_boolean = Class::<JavaAtomicBoolean>::find_class(ctx).unwrap();
+        let c_atomic_boolean = LocalClass::<JavaAtomicBoolean>::find_class(ctx).unwrap();
         let o_atomic_boolean = c_atomic_boolean.new_object(ctx, true).unwrap();
 
         let success: bool = o_atomic_boolean.call_method(ctx, "compareAndSet", (true, false)).unwrap();
@@ -248,10 +248,10 @@ fn test_boolean_parameter() {
 #[test]
 fn test_find_array_class() {
     with_java_vm(|ctx| {
-        Class::<Array<bool>>::find_class(ctx).unwrap();
-        Class::<Array<JString>>::find_class(ctx).unwrap();
-        Class::<Array<Array<bool>>>::find_class(ctx).unwrap();
-        Class::<Array<Array<JString>>>::find_class(ctx).unwrap();
+        LocalClass::<Array<bool>>::find_class(ctx).unwrap();
+        LocalClass::<Array<JString>>::find_class(ctx).unwrap();
+        LocalClass::<Array<Array<bool>>>::find_class(ctx).unwrap();
+        LocalClass::<Array<Array<JString>>>::find_class(ctx).unwrap();
     })
 }
 
@@ -276,9 +276,9 @@ fn test_return_object() {
 
         extern "C" fn call_native<'ctx>(
             ctx: &'ctx Context,
-            _: Object<'ctx, JavaRustNativeTest>,
+            _: TrampolineClass<'ctx, JavaRustNativeTest>,
             empty: bool,
-        ) -> Option<Object<'ctx, JString>> {
+        ) -> Option<LocalObject<'ctx, JString>> {
             if empty {
                 None
             } else {
@@ -286,12 +286,10 @@ fn test_return_object() {
             }
         }
 
-        let c_test: Class<JavaRustNativeTest> = Option::unwrap(
-            loader
-                .loader
-                .call_method(ctx, "loadClass", &Object::new_string(ctx, "RustNativeTest"))
-                .unwrap(),
-        );
+        let c_test: LocalClass<JavaRustNativeTest> = loader
+            .loader
+            .call_method(ctx, "loadClass", &Object::new_string(ctx, "RustNativeTest"))
+            .unwrap();
 
         unsafe {
             ctx.register_natives(
@@ -303,7 +301,7 @@ fn test_return_object() {
 
         assert_eq!(
             c_test
-                .call_method::<1, Option<Object<JString>>, _>(ctx, "callNative", false)
+                .call_method::<Option<LocalObject<JString>>, _>(ctx, "callNative", false)
                 .unwrap()
                 .map(|s| s.get_string(ctx))
                 .as_deref(),
@@ -311,7 +309,7 @@ fn test_return_object() {
         );
         assert_eq!(
             c_test
-                .call_method::<1, Option<Object<JString>>, _>(ctx, "callNative", true)
+                .call_method::<Option<LocalObject<JString>>, _>(ctx, "callNative", true)
                 .unwrap()
                 .map(|s| s.get_string(ctx)),
             None
@@ -366,7 +364,7 @@ fn test_drop_after_consume() {
 #[test]
 fn test_int_array_access() {
     with_java_vm(|ctx| {
-        let array = Object::<Array<i32>>::primitive(ctx, 8).unwrap();
+        let array = LocalObject::<Array<i32>>::new_primitive(ctx, 8).unwrap();
 
         let mut elements = array.get_elements(ctx);
 
@@ -403,5 +401,27 @@ fn test_int_array_access() {
         let buf = array.get_elements(ctx);
 
         assert_eq!(*buf, [1, 2, 3, 4, 8, 9, 10, 11])
+    })
+}
+
+#[test]
+fn test_bytes_access() {
+    let s = "Hello你好こんにちは안녕하세요";
+
+    with_java_vm(|ctx| {
+        let array = LocalObject::<Array<i8>>::new_primitive(ctx, s.as_bytes().len() as _).unwrap();
+
+        let mut elements = array.get_bytes_elements(ctx);
+
+        elements.copy_from_slice(s.as_bytes());
+
+        elements.commit();
+
+        let java_s = LocalClass::<JString>::find_class(ctx).unwrap();
+        let java_s = java_s.new_object(ctx, &array).unwrap();
+        assert_eq!(java_s.get_string(ctx).as_str(), s);
+
+        let array: LocalObject<Array<i8>> = java_s.call_method(ctx, "getBytes", NoArgs).unwrap();
+        assert_eq!(&*array.get_bytes_elements(ctx), s.as_bytes());
     })
 }

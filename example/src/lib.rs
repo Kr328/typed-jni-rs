@@ -1,7 +1,7 @@
 use typed_jni::{
     define_java_class,
     sys::{jint, JavaVM, JNI_VERSION_1_6},
-    Class, Context, JString, Object, Trampoline,
+    Context, JString, TrampolineClass, TrampolineObject,
 };
 
 #[cfg(test)]
@@ -12,10 +12,10 @@ define_java_class!(JavaExample, "com.github.kr328.typedjni.Example");
 #[no_mangle]
 pub extern "C" fn Java_com_github_kr328_typedjni_Example_nativeFunction<'ctx>(
     ctx: &'ctx Context,
-    _class: Class<'ctx, JavaExample, Trampoline<'ctx>>,
+    _class: TrampolineClass<'ctx, JavaExample>,
     value: i32,
     value2: f32,
-    value3: Object<'ctx, JString>,
+    value3: TrampolineObject<'ctx, JString>,
 ) {
     println!("value = {}", value);
     println!("value2 = {}", value2);
