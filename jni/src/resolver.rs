@@ -35,38 +35,35 @@ mod cache {
 
     fn get_or_alloc_slot() -> &'static mut Slot {
         unsafe {
-            loop {
-                match SLOTS.load(Ordering::Relaxed).as_mut() {
-                    None => {
-                        break Box::leak(Box::new(Slot {
-                            entries: uluru::LRUCache::new(),
-                            next: null_mut(),
-                        }));
-                    }
-                    Some(current) => match SLOTS.compare_exchange(current, current.next, Ordering::Relaxed, Ordering::Relaxed) {
-                        Ok(_) => {
-                            current.next = null_mut();
+            let slot = SLOTS
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |root| match root.as_mut() {
+                    None => Some(null_mut()),
+                    Some(r) => Some(r.next),
+                })
+                .unwrap();
 
-                            break current;
-                        }
-                        Err(_) => continue,
-                    },
+            match slot.as_mut() {
+                None => Box::leak(Box::new(Slot {
+                    entries: uluru::LRUCache::new(),
+                    next: null_mut(),
+                })),
+                Some(s) => {
+                    s.next = null_mut();
+
+                    s
                 }
             }
         }
     }
 
     fn put_slot(slot: &'static mut Slot) {
-        loop {
-            let next = SLOTS.load(Ordering::Relaxed);
+        SLOTS
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |root| {
+                slot.next = root;
 
-            slot.next = next;
-
-            match SLOTS.compare_exchange(next, slot, Ordering::Relaxed, Ordering::Relaxed) {
-                Ok(_) => break,
-                Err(_) => continue,
-            }
-        }
+                Some(slot)
+            })
+            .unwrap();
     }
 
     fn use_a_slot<R, F>(f: F) -> R
