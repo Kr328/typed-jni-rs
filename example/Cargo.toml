@@ -9,8 +9,6 @@ crate-type = ["lib", "cdylib"]
 [dependencies]
 typed-jni = { path = "../jni", default-features = false }
 
-libc = "0.2"
-libc_alloc = "1.0"
 jni = { version = "0.21", features = ["invocation"] }
 
 [dev-dependencies]

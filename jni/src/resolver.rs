@@ -195,3 +195,67 @@ pub fn find_field<'a, 'ctx, const STATIC: bool, C: StrongRef, T: Type>(
         CString::new(T::SIGNATURE.to_string()).unwrap(),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{
+        atomic::{AtomicPtr, Ordering},
+        Arc,
+    };
+
+    fn test_atomic_ordering(set_order: Ordering, fetch_order: Ordering) {
+        const THREADS: usize = 100;
+        const COUNT_PER_THREADS: usize = 1_000_000;
+
+        struct Holder {
+            count: usize,
+        }
+
+        let atomic: Arc<AtomicPtr<Holder>> = Arc::new(AtomicPtr::new(Box::into_raw(Box::new(Holder { count: 0 }))));
+
+        let handles = (0..THREADS).map(|_| {
+            let atomic = atomic.clone();
+
+            std::thread::spawn(move || {
+                for _ in 0..COUNT_PER_THREADS {
+                    let ptr = loop {
+                        match atomic.fetch_update(set_order, fetch_order, |ptr| {
+                            if ptr.is_null() {
+                                None
+                            } else {
+                                Some(std::ptr::null_mut())
+                            }
+                        }) {
+                            Ok(ptr) => break ptr,
+                            Err(_) => std::hint::spin_loop(),
+                        }
+                    };
+
+                    unsafe {
+                        (*ptr).count += 1;
+                    }
+
+                    atomic.store(ptr, set_order);
+                }
+            })
+        });
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        unsafe {
+            assert_eq!((*atomic.load(fetch_order)).count, THREADS * COUNT_PER_THREADS);
+        }
+    }
+
+    #[test]
+    fn test_atomic_ordering_relaxed() {
+        test_atomic_ordering(Ordering::Relaxed, Ordering::Relaxed);
+    }
+
+    #[test]
+    fn test_atomic_ordering_acqrel() {
+        test_atomic_ordering(Ordering::Release, Ordering::Acquire);
+    }
+}
