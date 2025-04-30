@@ -670,18 +670,18 @@ pub struct JNIInvokeInterface_ {
 pub struct JavaVM_ {
     pub functions: *const JNIInvokeInterface_,
 }
-extern "C" {
+unsafe extern "C" {
     pub fn JNI_GetDefaultJavaVMInitArgs(args: *mut ::core::ffi::c_void) -> jint;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn JNI_CreateJavaVM(pvm: *mut *mut JavaVM, penv: *mut *mut ::core::ffi::c_void, args: *mut ::core::ffi::c_void) -> jint;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn JNI_GetCreatedJavaVMs(arg1: *mut *mut JavaVM, arg2: jsize, arg3: *mut jsize) -> jint;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn JNI_OnLoad(vm: *mut JavaVM, reserved: *mut ::core::ffi::c_void) -> jint;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn JNI_OnUnload(vm: *mut JavaVM, reserved: *mut ::core::ffi::c_void);
 }

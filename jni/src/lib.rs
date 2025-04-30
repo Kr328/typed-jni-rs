@@ -42,7 +42,7 @@ pub const unsafe fn __class_name_to_internal_name_bytes<const N: usize>(s: &'sta
 
 #[doc(hidden)]
 pub const unsafe fn __bytes_to_str(bytes: &'static [u8]) -> &'static str {
-    core::str::from_utf8_unchecked(bytes)
+    unsafe { core::str::from_utf8_unchecked(bytes) }
 }
 
 #[macro_export]

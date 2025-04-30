@@ -26,6 +26,6 @@ pub trait FromRaw: Raw {
 
 impl<V: FromRaw> FromRaw for Option<V> {
     unsafe fn from_raw(raw: Self::Raw) -> Self {
-        raw.map(|r| V::from_raw(r))
+        unsafe { raw.map(|r| V::from_raw(r)) }
     }
 }

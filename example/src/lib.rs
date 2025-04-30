@@ -9,7 +9,7 @@ mod tests;
 
 define_java_class!(JavaExample, "com.github.kr328.typedjni.Example");
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn Java_com_github_kr328_typedjni_Example_nativeFunction<'ctx>(
     ctx: &'ctx Context,
     _class: TrampolineClass<'ctx, JavaExample>,
@@ -22,7 +22,7 @@ pub extern "C" fn Java_com_github_kr328_typedjni_Example_nativeFunction<'ctx>(
     println!("value3 = {}", value3.get_string(ctx));
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn JNI_OnLoad(vm: *mut JavaVM, _: *const ()) -> jint {
     typed_jni::attach_vm(vm);
 

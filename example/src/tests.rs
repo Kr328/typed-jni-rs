@@ -48,10 +48,10 @@ fn test_convert_string() {
 #[test]
 fn test_string_array() {
     with_java_vm(|ctx| {
-        let length = rand::random::<usize>() % 128;
+        let length = rand::random::<u32>() % 128;
         let array = (0..length)
             .map(|_| {
-                let length = rand::random::<usize>() % 128;
+                let length = rand::random::<u32>() % 128;
                 (0..length).map(|_| rand::random::<char>()).collect::<String>()
             })
             .collect::<Vec<_>>();
@@ -79,7 +79,7 @@ fn test_string_array() {
 #[test]
 fn test_bool_array() {
     with_java_vm(|ctx| {
-        let length: usize = rand::random::<usize>() % 128;
+        let length = rand::random::<u32>() % 128;
         let array: Vec<bool> = (0..length).map(|_| rand::random::<bool>()).collect();
 
         let o_array = LocalObject::<Array<bool>>::new_primitive(ctx, array.len() as _).unwrap();
