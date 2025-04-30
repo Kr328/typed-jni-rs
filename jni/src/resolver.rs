@@ -9,15 +9,13 @@ use crate::{Args, Context, Field, LocalObject, Method, Signature, StrongRef, Thr
 
 #[cfg(feature = "cache")]
 mod cache {
-    use alloc::boxed::Box;
-    use core::{
-        ptr::null_mut,
-        sync::atomic::{AtomicPtr, Ordering},
-    };
+    use std::cell::RefCell;
+
+    use uluru::LRUCache;
 
     use crate::{Context, LocalObject, StrongRef, Throwable, Weak};
 
-    const MAX_MEMBER_CACHE_PER_SLOT: usize = 128;
+    const MAX_CACHED_PER_THREAD: usize = 32;
 
     struct Entry {
         class: Weak,
@@ -26,57 +24,8 @@ mod cache {
         member: *const (),
     }
 
-    struct Slot {
-        entries: uluru::LRUCache<Entry, MAX_MEMBER_CACHE_PER_SLOT>,
-        next: *mut Slot,
-    }
-
-    static SLOTS: AtomicPtr<Slot> = AtomicPtr::new(null_mut());
-
-    fn get_or_alloc_slot() -> &'static mut Slot {
-        unsafe {
-            let slot = SLOTS
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |root| match root.as_mut() {
-                    None => Some(null_mut()),
-                    Some(r) => Some(r.next),
-                })
-                .unwrap();
-
-            match slot.as_mut() {
-                None => Box::leak(Box::new(Slot {
-                    entries: uluru::LRUCache::new(),
-                    next: null_mut(),
-                })),
-                Some(s) => {
-                    s.next = null_mut();
-
-                    s
-                }
-            }
-        }
-    }
-
-    fn put_slot(slot: &'static mut Slot) {
-        SLOTS
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |root| {
-                slot.next = root;
-
-                Some(slot)
-            })
-            .unwrap();
-    }
-
-    fn use_a_slot<R, F>(f: F) -> R
-    where
-        for<'a> F: FnOnce(&'a mut &'static mut Slot) -> R,
-    {
-        let mut slot = get_or_alloc_slot();
-
-        let r = f(&mut slot);
-
-        put_slot(slot);
-
-        r
+    thread_local! {
+        static CACHED: RefCell<LRUCache<Entry, MAX_CACHED_PER_THREAD>> = RefCell::new(LRUCache::new());
     }
 
     pub fn find_member<
@@ -90,10 +39,12 @@ mod cache {
         name: &'static str,
         find: F,
     ) -> Result<M, LocalObject<'ctx, Throwable>> {
-        use_a_slot(|slot| {
+        CACHED.with(|entries| {
+            let mut entries = entries.borrow_mut();
+
             let types_id = find_member::<C, M, F> as *const () as usize;
 
-            let cached = slot.entries.find(|e| {
+            let cached = entries.find(|e| {
                 e.types_id == types_id && name.as_ptr() == e.name.as_ptr() && ctx.is_same_object(Some(&e.class), Some(class))
             });
             match cached {
@@ -101,7 +52,7 @@ mod cache {
                 None => {
                     let (member, cache) = find(None)?;
 
-                    slot.entries.insert(Entry {
+                    entries.insert(Entry {
                         class: class.downgrade_weak(),
                         types_id,
                         name,
