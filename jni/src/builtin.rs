@@ -38,6 +38,20 @@ impl<R: StrongRef> std::error::Error for Object<JavaThrowable, R> {}
 
 define_object_builtin!(JavaObject, "java/lang/Object");
 
+impl<O: ObjectType, R: Ref> Object<O, R> {
+    pub fn into_object(self) -> Object<JavaObject, R> {
+        unsafe { Object::from_raw(self.into_raw()) }
+    }
+}
+
+define_object_builtin!(JavaClass, "java/lang/Class");
+
+impl<O: ObjectType, R: Ref> Class<O, R> {
+    pub fn into_object(self) -> Object<JavaClass, R> {
+        unsafe { Object::from_raw(self.into_raw()) }
+    }
+}
+
 define_object_builtin!(JavaString, "java/lang/String");
 
 impl<R: StrongRef> Object<JavaString, R> {
