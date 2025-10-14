@@ -1,11 +1,10 @@
-use typed_jni::{
-    define_java_class,
-    sys::{jint, JavaVM, JNI_VERSION_1_6},
-    Context, JString, TrampolineClass, TrampolineObject,
-};
-
 #[cfg(test)]
 mod tests;
+
+use typed_jni::{
+    Context, JavaString, TrampolineClass, TrampolineObject, define_java_class,
+    sys::{JNI_VERSION_1_6, JavaVM, jint},
+};
 
 define_java_class!(JavaExample, "com.github.kr328.typedjni.Example");
 
@@ -15,7 +14,7 @@ pub extern "C" fn Java_com_github_kr328_typedjni_Example_nativeFunction<'ctx>(
     _class: TrampolineClass<'ctx, JavaExample>,
     value: i32,
     value2: f32,
-    value3: TrampolineObject<'ctx, JString>,
+    value3: TrampolineObject<'ctx, JavaString>,
 ) {
     println!("value = {}", value);
     println!("value2 = {}", value2);

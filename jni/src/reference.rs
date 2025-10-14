@@ -1,16 +1,16 @@
-use core::{marker::PhantomData, ptr::NonNull};
+use core::{fmt::Debug, marker::PhantomData, ptr::NonNull};
 
 use crate::{
-    context::Context,
+    raw::{AsRaw, FromRaw, IntoRaw, Raw},
     sys::{_jobject, jobject},
-    AsRaw, FromRaw, IntoRaw, Raw,
+    vm,
 };
 
 mod __sealed {
     pub trait Sealed {}
 }
 
-pub trait Ref: Raw<Raw = jobject> + AsRaw + IntoRaw + Sized + __sealed::Sealed {
+pub trait Ref: Raw<Raw = jobject> + AsRaw + IntoRaw + Sized + Debug + __sealed::Sealed {
     const KIND: &'static str;
 }
 
@@ -18,77 +18,47 @@ impl<R: Ref> Raw for R {
     type Raw = jobject;
 }
 
-pub trait StrongRef: Ref {
-    fn to_global(&self) -> Global {
-        Context::with_attached(|ctx| unsafe { Global::from_raw(ctx.new_global_ref(*self.as_raw())) })
-    }
+pub trait StrongRef: Ref {}
 
-    fn to_local<'ctx>(&self, ctx: &'ctx Context) -> Local<'ctx> {
-        unsafe { Local::from_raw(ctx.new_local_ref(*self.as_raw())) }
-    }
+pub trait WeakRef: Ref {}
 
-    fn downgrade_weak(&self) -> Weak {
-        Context::with_attached(|ctx| unsafe { Weak::from_raw(ctx.new_weak_global_ref(*self.as_raw())) })
-    }
-}
+macro_rules! impl_basic_ref {
+    ($typ:ty, $k:expr) => {
+        impl<'ctx> __sealed::Sealed for $typ {}
 
-pub trait WeakRef: Ref {
-    fn upgrade_global(&self) -> Option<Global> {
-        Context::with_attached(|ctx| unsafe {
-            let raw = ctx.new_global_ref(*self.as_raw());
+        impl<'ctx> Ref for $typ {
+            const KIND: &'static str = $k;
+        }
 
-            if raw.is_null() {
-                None
-            } else {
-                Some(Global::from_raw(raw))
-            }
-        })
-    }
-
-    fn upgrade_local<'ctx>(&self, ctx: &'ctx Context) -> Option<Local<'ctx>> {
-        unsafe {
-            let raw = ctx.new_local_ref(*self.as_raw());
-
-            if raw.is_null() {
-                None
-            } else {
-                Some(Local::from_raw(raw))
+        impl<'ctx> AsRaw for $typ {
+            fn as_raw(&self) -> &Self::Raw {
+                unsafe { core::mem::transmute(&self.raw) }
             }
         }
-    }
+
+        impl<'ctx> IntoRaw for $typ {
+            fn into_raw(self) -> Self::Raw {
+                let r = self.raw;
+
+                core::mem::forget(self);
+
+                r.as_ptr()
+            }
+        }
+    };
 }
 
-#[repr(transparent)]
+#[derive(Debug)]
 pub struct Global {
     raw: NonNull<_jobject>,
 }
 
+impl_basic_ref!(Global, "Global");
+
+impl StrongRef for Global {}
+
 unsafe impl Send for Global {}
 unsafe impl Sync for Global {}
-
-impl Clone for Global {
-    fn clone(&self) -> Self {
-        unsafe {
-            Context::with_attached(|ctx| Self {
-                raw: NonNull::new(ctx.new_global_ref(self.raw.as_ptr())).unwrap(),
-            })
-        }
-    }
-}
-
-impl Drop for Global {
-    fn drop(&mut self) {
-        unsafe { Context::with_attached(|ctx| ctx.delete_global_ref(self.raw.as_ptr())) }
-    }
-}
-
-impl __sealed::Sealed for Global {}
-
-impl AsRaw for Global {
-    fn as_raw(&self) -> &Self::Raw {
-        unsafe { core::mem::transmute(&self.raw) }
-    }
-}
 
 impl FromRaw for Global {
     unsafe fn from_raw(raw: Self::Raw) -> Self {
@@ -98,50 +68,36 @@ impl FromRaw for Global {
     }
 }
 
-impl IntoRaw for Global {
-    fn into_raw(self) -> Self::Raw {
-        let r = self.raw;
-
-        core::mem::forget(self);
-
-        r.as_ptr()
-    }
-}
-
-impl Ref for Global {
-    const KIND: &'static str = "Global";
-}
-
-impl StrongRef for Global {}
-
-#[repr(transparent)]
-pub struct Local<'ctx> {
-    raw: NonNull<_jobject>,
-    _ctx: PhantomData<&'ctx Context>,
-}
-
-impl<'ctx> Clone for Local<'ctx> {
+impl Clone for Global {
     fn clone(&self) -> Self {
-        let raw = Context::with_current(|ctx| unsafe { ctx.new_local_ref(self.raw.as_ptr()) }).unwrap();
+        unsafe {
+            let attached = vm::attach();
 
-        Local {
-            raw: NonNull::new(raw).unwrap(),
-            _ctx: PhantomData,
+            Self::from_raw((**attached.env()).NewGlobalRef.unwrap()(attached.env(), self.raw.as_ptr()))
         }
     }
 }
 
-impl<'ctx> Drop for Local<'ctx> {
+impl Drop for Global {
     fn drop(&mut self) {
-        Context::with_current(|ctx| unsafe { ctx.delete_local_ref(self.raw.as_ptr()) }).unwrap();
+        unsafe {
+            let attached = vm::attach();
+
+            (**attached.env()).DeleteGlobalRef.unwrap()(attached.env(), self.raw.as_ptr());
+        }
     }
 }
 
-impl<'ctx> AsRaw for Local<'ctx> {
-    fn as_raw(&self) -> &Self::Raw {
-        unsafe { core::mem::transmute(&self.raw) }
-    }
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct Local<'ctx> {
+    raw: NonNull<_jobject>,
+    _ctx: PhantomData<&'ctx ()>,
 }
+
+impl_basic_ref!(Local<'ctx>, "Local");
+
+impl<'ctx> StrongRef for Local<'ctx> {}
 
 impl<'ctx> FromRaw for Local<'ctx> {
     unsafe fn from_raw(raw: Self::Raw) -> Self {
@@ -152,79 +108,49 @@ impl<'ctx> FromRaw for Local<'ctx> {
     }
 }
 
-impl<'ctx> IntoRaw for Local<'ctx> {
-    fn into_raw(self) -> Self::Raw {
-        let r = self.raw;
+impl<'ctx> Clone for Local<'ctx> {
+    fn clone(&self) -> Self {
+        unsafe {
+            let env = vm::current().expect("local ref must be cloned in attached thread");
 
-        core::mem::forget(self);
-
-        r.as_ptr()
+            Self::from_raw((**env).NewLocalRef.unwrap()(env, self.raw.as_ptr()))
+        }
     }
 }
 
-impl<'ctx> Ref for Local<'ctx> {
-    const KIND: &'static str = "Local";
+impl<'ctx> Drop for Local<'ctx> {
+    fn drop(&mut self) {
+        unsafe {
+            if let Some(env) = vm::current() {
+                (**env).DeleteLocalRef.unwrap()(env, self.raw.as_ptr());
+            }
+        }
+    }
 }
 
-impl<'ctx> __sealed::Sealed for Local<'ctx> {}
-
-impl<'ctx> StrongRef for Local<'ctx> {}
-
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct Trampoline<'ctx> {
     raw: NonNull<_jobject>,
-    _ctx: PhantomData<&'ctx Context>,
+    _ctx: PhantomData<&'ctx ()>,
 }
 
-impl<'ctx> Ref for Trampoline<'ctx> {
-    const KIND: &'static str = "Trampoline";
-}
+impl_basic_ref!(Trampoline<'ctx>, "Trampoline");
 
 impl<'ctx> StrongRef for Trampoline<'ctx> {}
 
-impl<'ctx> AsRaw for Trampoline<'ctx> {
-    fn as_raw(&self) -> &Self::Raw {
-        unsafe { core::mem::transmute(&self.raw) }
-    }
-}
-
-impl<'ctx> IntoRaw for Trampoline<'ctx> {
-    fn into_raw(self) -> Self::Raw {
-        self.raw.as_ptr()
-    }
-}
-
-impl<'ctx> __sealed::Sealed for Trampoline<'ctx> {}
-
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct Weak {
     raw: NonNull<_jobject>,
 }
 
+impl_basic_ref!(Weak, "Weak");
+
+impl WeakRef for Weak {}
+
 unsafe impl Send for Weak {}
 unsafe impl Sync for Weak {}
-
-impl Clone for Weak {
-    fn clone(&self) -> Self {
-        unsafe {
-            Context::with_attached(|ctx| Self {
-                raw: NonNull::new(ctx.new_weak_global_ref(self.raw.as_ptr())).unwrap(),
-            })
-        }
-    }
-}
-
-impl Drop for Weak {
-    fn drop(&mut self) {
-        unsafe { Context::with_attached(|ctx| ctx.delete_weak_global_ref(self.raw.as_ptr())) }
-    }
-}
-
-impl AsRaw for Weak {
-    fn as_raw(&self) -> &Self::Raw {
-        unsafe { core::mem::transmute(&self.raw) }
-    }
-}
 
 impl FromRaw for Weak {
     unsafe fn from_raw(raw: Self::Raw) -> Self {
@@ -234,20 +160,12 @@ impl FromRaw for Weak {
     }
 }
 
-impl IntoRaw for Weak {
-    fn into_raw(self) -> Self::Raw {
-        let r = self.raw;
+impl Drop for Weak {
+    fn drop(&mut self) {
+        unsafe {
+            let attached = vm::attach();
 
-        core::mem::forget(self);
-
-        r.as_ptr()
+            (**attached.env()).DeleteWeakGlobalRef.unwrap()(attached.env(), self.raw.as_ptr());
+        }
     }
 }
-
-impl Ref for Weak {
-    const KIND: &'static str = "Weak";
-}
-
-impl __sealed::Sealed for Weak {}
-
-impl WeakRef for Weak {}

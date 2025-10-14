@@ -5,37 +5,35 @@ use core::{
 };
 
 use crate::{
-    typed::{Signature, Type},
     AsRaw, Class, Context, FromRaw, Global, IntoRaw, Local, LocalObject, Object, ObjectType, PrimitiveArrayElement,
-    PrimitiveType, Ref, StrongRef,
+    PrimitiveType, Ref, Signature, StrongRef, Type,
 };
 
-pub struct Throwable;
+macro_rules! define_object_builtin {
+    ($name:ident, $class:literal) => {
+        pub struct $name;
 
-impl Type for Throwable {
-    const SIGNATURE: Signature = Signature::Object("java/lang/Throwable");
+        impl Type for $name {
+            const SIGNATURE: Signature = Signature::Object($class);
+        }
+
+        impl ObjectType for $name {}
+    };
 }
 
-impl ObjectType for Throwable {}
+define_object_builtin!(JavaThrowable, "java/lang/Throwable");
 
-#[cfg(feature = "std")]
-impl<R: super::StrongRef> std::error::Error for Object<Throwable, R> {}
+define_object_builtin!(JavaObject, "java/lang/Object");
 
-pub struct JString;
+define_object_builtin!(JavaString, "java/lang/String");
 
-impl Type for JString {
-    const SIGNATURE: Signature = Signature::Object("java/lang/String");
-}
-
-impl ObjectType for JString {}
-
-impl<R: StrongRef> Object<JString, R> {
+impl<R: StrongRef> Object<JavaString, R> {
     pub fn get_string(&self, ctx: &Context) -> String {
         unsafe { ctx.get_string(self.as_raw()) }
     }
 }
 
-impl<'ctx> Object<JString, Local<'ctx>> {
+impl<'ctx> Object<JavaString, Local<'ctx>> {
     pub fn new_string(ctx: &'ctx Context, s: impl AsRef<str>) -> Self {
         unsafe { Self::from_raw(ctx.new_string(s)) }
     }
@@ -50,10 +48,15 @@ impl<T: Type> Type for Array<T> {
 impl<T: Type> ObjectType for Array<T> {}
 
 impl<'ctx, T: Type + ObjectType> Object<Array<T>, Local<'ctx>> {
-    pub fn new<CR: StrongRef>(ctx: &'ctx Context, size: i32, class: &Class<T, CR>) -> Result<Self, LocalObject<'ctx, Throwable>> {
+    pub fn new<CR: StrongRef>(
+        ctx: &'ctx Context,
+        size: i32,
+        class: &Class<T, CR>,
+    ) -> Result<Self, LocalObject<'ctx, JavaThrowable>> {
         unsafe {
             ctx.new_object_array::<_, Global>(size, class.as_raw(), None)
                 .map(|r| Object::from_raw(r))
+                .map_err(|err| LocalObject::from_raw(err))
         }
     }
 
@@ -62,17 +65,22 @@ impl<'ctx, T: Type + ObjectType> Object<Array<T>, Local<'ctx>> {
         size: i32,
         class: &Class<T, CR>,
         initial: &Object<T, OR>,
-    ) -> Result<Self, LocalObject<'ctx, Throwable>> {
+    ) -> Result<Self, LocalObject<'ctx, JavaThrowable>> {
         unsafe {
             ctx.new_object_array(size, class.as_raw(), Some(initial.into_raw()))
                 .map(|r| Object::from_raw(r))
+                .map_err(|err| LocalObject::from_raw(err))
         }
     }
 }
 
 impl<'ctx, T: Type + PrimitiveType + PrimitiveArrayElement> Object<Array<T>, Local<'ctx>> {
-    pub fn new_primitive(ctx: &'ctx Context, size: i32) -> Result<Self, LocalObject<'ctx, Throwable>> {
-        unsafe { ctx.new_primitive_array::<T>(size).map(|r| Self::from_raw(r)) }
+    pub fn new_primitive(ctx: &'ctx Context, size: i32) -> Result<Self, LocalObject<'ctx, JavaThrowable>> {
+        unsafe {
+            ctx.new_primitive_array::<T>(size)
+                .map(|r| Self::from_raw(r))
+                .map_err(|err| LocalObject::from_raw(err))
+        }
     }
 }
 
@@ -87,8 +95,13 @@ impl<T: Type + ObjectType, R: StrongRef> Object<Array<T>, R> {
         &self,
         ctx: &'ctx Context,
         index: i32,
-    ) -> Result<Option<LocalObject<'ctx, T>>, LocalObject<'ctx, Throwable>> {
-        unsafe { Ok(Option::from_raw(ctx.get_object_array_element(self.as_raw(), index)?)) }
+    ) -> Result<Option<LocalObject<'ctx, T>>, LocalObject<'ctx, JavaThrowable>> {
+        unsafe {
+            Ok(Option::from_raw(
+                ctx.get_object_array_element(self.as_raw(), index)
+                    .map_err(|err| LocalObject::from_raw(err))?,
+            ))
+        }
     }
 
     pub fn set_element<'ctx, 'a, RV: Ref + 'a>(
@@ -96,8 +109,11 @@ impl<T: Type + ObjectType, R: StrongRef> Object<Array<T>, R> {
         ctx: &'ctx Context,
         index: i32,
         object: Option<&'a Object<T, RV>>,
-    ) -> Result<(), LocalObject<'ctx, Throwable>> {
-        unsafe { ctx.set_object_array_element(self.as_raw(), index, object.into_raw()) }
+    ) -> Result<(), LocalObject<'ctx, JavaThrowable>> {
+        unsafe {
+            ctx.set_object_array_element(self.as_raw(), index, object.into_raw())
+                .map_err(|err| LocalObject::from_raw(err))
+        }
     }
 }
 
@@ -143,12 +159,23 @@ impl<T: Type + PrimitiveType + PrimitiveArrayElement, R: StrongRef> Object<Array
         }
     }
 
-    pub fn get_region<'ctx>(&self, ctx: &'ctx Context, offset: i32, buf: &mut [T]) -> Result<(), LocalObject<'ctx, Throwable>> {
-        unsafe { ctx.get_primitive_array_region(self.as_raw(), offset, buf) }
+    pub fn get_region<'ctx>(
+        &self,
+        ctx: &'ctx Context,
+        offset: i32,
+        buf: &mut [T],
+    ) -> Result<(), LocalObject<'ctx, JavaThrowable>> {
+        unsafe {
+            ctx.get_primitive_array_region(self.as_raw(), offset, buf)
+                .map_err(|err| LocalObject::from_raw(err))
+        }
     }
 
-    pub fn set_region<'ctx>(&self, ctx: &'ctx Context, offset: i32, buf: &[T]) -> Result<(), LocalObject<'ctx, Throwable>> {
-        unsafe { ctx.set_primitive_array_region(self.as_raw(), offset, buf) }
+    pub fn set_region<'ctx>(&self, ctx: &'ctx Context, offset: i32, buf: &[T]) -> Result<(), LocalObject<'ctx, JavaThrowable>> {
+        unsafe {
+            ctx.set_primitive_array_region(self.as_raw(), offset, buf)
+                .map_err(|err| LocalObject::from_raw(err))
+        }
     }
 }
 
@@ -214,13 +241,14 @@ impl<R: StrongRef> Object<Array<i8>, R> {
         ctx: &'ctx Context,
         offset: i32,
         buf: &mut [u8],
-    ) -> Result<(), LocalObject<'ctx, Throwable>> {
+    ) -> Result<(), LocalObject<'ctx, JavaThrowable>> {
         unsafe {
             ctx.get_primitive_array_region(
                 self.as_raw(),
                 offset,
                 core::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut i8, buf.len()),
             )
+            .map_err(|err| LocalObject::from_raw(err))
         }
     }
 
@@ -229,13 +257,14 @@ impl<R: StrongRef> Object<Array<i8>, R> {
         ctx: &'ctx Context,
         offset: i32,
         buf: &[u8],
-    ) -> Result<(), LocalObject<'ctx, Throwable>> {
+    ) -> Result<(), LocalObject<'ctx, JavaThrowable>> {
         unsafe {
             ctx.set_primitive_array_region(
                 self.as_raw(),
                 offset,
                 core::slice::from_raw_parts(buf.as_ptr() as *const i8, buf.len()),
             )
+            .map_err(|err| LocalObject::from_raw(err))
         }
     }
 }

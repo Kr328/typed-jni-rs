@@ -6,6 +6,7 @@ extern crate core;
 mod args;
 mod builtin;
 mod context;
+mod ext;
 mod raw;
 mod reference;
 mod resolver;
@@ -19,7 +20,7 @@ pub use context::*;
 pub use raw::*;
 pub use reference::*;
 pub use typed::*;
-pub use vm::attach_vm;
+pub use vm::{attach_vm, require_vm};
 
 #[doc(hidden)]
 pub const unsafe fn __class_name_to_internal_name_bytes<const N: usize>(s: &'static str) -> [u8; N] {

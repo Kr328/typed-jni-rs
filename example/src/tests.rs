@@ -2,8 +2,8 @@ use std::{process::Stdio, ptr, sync::OnceLock};
 
 use jni::JavaVM;
 use typed_jni::{
-    define_java_class, Array, AsRaw, Class, Context, JString, LocalClass, LocalObject, NoArgs, Object, TrampolineClass,
-    TrampolineObject,
+    Array, AsRaw, Class, Context, JavaString, LocalClass, LocalObject, NoArgs, Object, TrampolineClass, TrampolineObject,
+    define_java_class,
 };
 
 fn with_java_vm<R, F: FnOnce(&Context) -> R>(f: F) -> R {
@@ -37,7 +37,7 @@ fn test_convert_string() {
                 let response = reqwest::get(TEST_CONTENT_URL).await.unwrap();
                 let content = response.text().await.unwrap();
 
-                let o_string: LocalObject<JString> = Object::new_string(ctx, &content);
+                let o_string: LocalObject<JavaString> = Object::new_string(ctx, &content);
                 let r_content: String = o_string.get_string(ctx);
 
                 assert_eq!(content, r_content);
@@ -57,17 +57,18 @@ fn test_string_array() {
             .collect::<Vec<_>>();
 
         let o_array =
-            LocalObject::<Array<JString>>::new(ctx, array.len() as _, &LocalClass::<JString>::find_class(ctx).unwrap()).unwrap();
+            LocalObject::<Array<JavaString>>::new(ctx, array.len() as _, &LocalClass::<JavaString>::find_class(ctx).unwrap())
+                .unwrap();
         for (index, s) in array.iter().enumerate() {
             o_array
-                .set_element(ctx, index as _, Some(&LocalObject::<JString>::new_string(ctx, s)))
+                .set_element(ctx, index as _, Some(&LocalObject::<JavaString>::new_string(ctx, s)))
                 .unwrap();
         }
 
         let r_length = o_array.length(ctx);
         let mut r_array = Vec::with_capacity(r_length as _);
         for index in 0..r_length {
-            let s: Option<LocalObject<JString>> = o_array.get_element(ctx, index).unwrap();
+            let s: Option<LocalObject<JavaString>> = o_array.get_element(ctx, index).unwrap();
 
             r_array.push(s.unwrap().get_string(ctx));
         }
@@ -124,7 +125,10 @@ fn compile_file_and_load_classes<'ctx>(ctx: &'ctx Context, public_class_name: &s
 
     let c_file: LocalClass<JavaFile> = Class::find_class(ctx).unwrap();
     let o_file: LocalObject<JavaFile> = c_file
-        .new_object(ctx, &LocalObject::<JString>::new_string(ctx, temp.path().to_str().unwrap()))
+        .new_object(
+            ctx,
+            &LocalObject::<JavaString>::new_string(ctx, temp.path().to_str().unwrap()),
+        )
         .unwrap();
     let o_uri: LocalObject<JavaURI> = o_file.call_method(ctx, "toURI", NoArgs).unwrap();
     let o_url: LocalObject<JavaURL> = o_uri.call_method(ctx, "toURL", NoArgs).unwrap();
@@ -162,11 +166,11 @@ fn test_inner_class() {
 
         let c_test: LocalClass<JavaRustTest> = loader
             .loader
-            .call_method(ctx, "loadClass", &LocalObject::<JString>::new_string(ctx, "RustTest"))
+            .call_method(ctx, "loadClass", &LocalObject::<JavaString>::new_string(ctx, "RustTest"))
             .unwrap();
 
         let o_inner: LocalObject<JavaInnerClass> = c_test.get_field(ctx, "INNER").unwrap();
-        let value: LocalObject<JString> = o_inner.get_field(ctx, "VALUE").unwrap();
+        let value: LocalObject<JavaString> = o_inner.get_field(ctx, "VALUE").unwrap();
 
         assert_eq!("STRING FROM INNER CLASS", value.get_string(ctx));
     });
@@ -196,7 +200,7 @@ fn test_register_native() {
             _: TrampolineClass<'ctx, JavaRustNativeTest>,
             value: i32,
             value2: f32,
-            value3: TrampolineObject<'ctx, JString>,
+            value3: TrampolineObject<'ctx, JavaString>,
         ) -> i32 {
             let v = value + value2 as i32 + value3.get_string(ctx).len() as i32;
 
@@ -221,7 +225,7 @@ fn test_register_native() {
                 .call_method::<i32, _>(
                     ctx,
                     "callNative",
-                    (114514, 12.78f32, &LocalObject::<JString>::new_string(ctx, "114514"))
+                    (114514, 12.78f32, &LocalObject::<JavaString>::new_string(ctx, "114514"))
                 )
                 .unwrap(),
             114514 + 12 + 6
@@ -249,9 +253,9 @@ fn test_boolean_parameter() {
 fn test_find_array_class() {
     with_java_vm(|ctx| {
         LocalClass::<Array<bool>>::find_class(ctx).unwrap();
-        LocalClass::<Array<JString>>::find_class(ctx).unwrap();
+        LocalClass::<Array<JavaString>>::find_class(ctx).unwrap();
         LocalClass::<Array<Array<bool>>>::find_class(ctx).unwrap();
-        LocalClass::<Array<Array<JString>>>::find_class(ctx).unwrap();
+        LocalClass::<Array<Array<JavaString>>>::find_class(ctx).unwrap();
     })
 }
 
@@ -278,12 +282,8 @@ fn test_return_object() {
             ctx: &'ctx Context,
             _: TrampolineClass<'ctx, JavaRustNativeTest>,
             empty: bool,
-        ) -> Option<LocalObject<'ctx, JString>> {
-            if empty {
-                None
-            } else {
-                Some(Object::new_string(ctx, "Some"))
-            }
+        ) -> Option<LocalObject<'ctx, JavaString>> {
+            if empty { None } else { Some(Object::new_string(ctx, "Some")) }
         }
 
         let c_test: LocalClass<JavaRustNativeTest> = loader
@@ -301,7 +301,7 @@ fn test_return_object() {
 
         assert_eq!(
             c_test
-                .call_method::<Option<LocalObject<JString>>, _>(ctx, "callNative", false)
+                .call_method::<Option<LocalObject<JavaString>>, _>(ctx, "callNative", false)
                 .unwrap()
                 .map(|s| s.get_string(ctx))
                 .as_deref(),
@@ -309,7 +309,7 @@ fn test_return_object() {
         );
         assert_eq!(
             c_test
-                .call_method::<Option<LocalObject<JString>>, _>(ctx, "callNative", true)
+                .call_method::<Option<LocalObject<JavaString>>, _>(ctx, "callNative", true)
                 .unwrap()
                 .map(|s| s.get_string(ctx)),
             None
@@ -417,7 +417,7 @@ fn test_bytes_access() {
 
         elements.commit();
 
-        let java_s = LocalClass::<JString>::find_class(ctx).unwrap();
+        let java_s = LocalClass::<JavaString>::find_class(ctx).unwrap();
         let java_s = java_s.new_object(ctx, &array).unwrap();
         assert_eq!(java_s.get_string(ctx).as_str(), s);
 

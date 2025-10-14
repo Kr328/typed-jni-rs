@@ -1,23 +1,16 @@
-use alloc::{
-    borrow::Cow,
-    ffi::CString,
-    format,
-    string::{String, ToString},
-};
+use alloc::{borrow::Cow, ffi::CString, format, string::String};
 use core::{
     fmt::{Debug, Display, Formatter},
     marker::PhantomData,
-    ptr::null_mut,
-    sync::atomic::{AtomicPtr, Ordering},
 };
 
 use crate::{
-    builtin::Throwable,
-    context::{CallArg, CallResult, Context, GetReturn, Method, SetArg},
-    reference::{Local, Ref, StrongRef},
+    builtin::JavaThrowable,
+    context::{CallArg, CallArgs, CallResult, Context, GetReturn, Method, SetArg},
+    ext::{ContextExt, StrongRefExt},
+    raw::{AsRaw, FromRaw, IntoRaw, Raw},
+    reference::{Global, Local, Ref, StrongRef, Trampoline, Weak, WeakRef},
     resolver,
-    sys::_jmethodID,
-    AsRaw, CallArgs, FromRaw, Global, IntoRaw, Raw, Trampoline, Weak, WeakRef,
 };
 
 mod __sealed {
@@ -155,52 +148,6 @@ pub type TrampolineClass<'ctx, T> = Class<T, Trampoline<'ctx>>;
 pub type GlobalClass<T> = Class<T, Global>;
 pub type WeakClass<T> = Class<T, Weak>;
 
-fn object_to_string<R: StrongRef>(r: &R) -> String {
-    Context::with_attached(|ctx| {
-        static M_TO_STRING: AtomicPtr<_jmethodID> = AtomicPtr::new(null_mut());
-        let m_to_string = M_TO_STRING.load(Ordering::Relaxed);
-        let m_to_string = if m_to_string.is_null() {
-            match ctx
-                .find_class(c"java/lang/Object")
-                .and_then(|c| ctx.find_method(&c, c"toString", c"()Ljava/lang/String;"))
-            {
-                Ok(m) => {
-                    M_TO_STRING.store(*m.as_raw(), Ordering::Relaxed);
-
-                    m
-                }
-                Err(_) => panic!("BROKEN: find java/lang/Object.toString() failed"),
-            }
-        } else {
-            unsafe { Method::<false>::from_raw(m_to_string) }
-        };
-
-        unsafe {
-            ctx.call_method(r, m_to_string, [])
-                .ok()
-                .flatten()
-                .map(|s| ctx.get_string(&s))
-                .unwrap_or("<exception>".to_string())
-        }
-    })
-}
-
-fn ref_equal<R1: Ref, R2: Ref>(r1: &R1, r2: &R2) -> bool {
-    Context::with_attached(|ctx| ctx.is_same_object(Some(r1), Some(r2)))
-}
-
-#[derive(Debug)]
-pub struct ClassCastException;
-
-impl Display for ClassCastException {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        f.write_str("ClassCastException")
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for ClassCastException {}
-
 macro_rules! impl_common {
     ($name:ident) => {
         impl<T: ObjectType, R: Ref + Clone> Clone for $name<T, R> {
@@ -245,26 +192,26 @@ macro_rules! impl_common {
         }
 
         impl<T: ObjectType, R: StrongRef> $name<T, R> {
-            pub fn to_global(&self) -> $name<T, Global> {
-                unsafe { $name::from_raw(self.as_raw().to_global()) }
+            pub fn to_global(&self, ctx: &Context) -> $name<T, Global> {
+                unsafe { $name::from_raw(ctx.new_global_ref(self.as_raw()).unwrap()) }
             }
 
             pub fn to_local<'ctx>(&self, ctx: &'ctx Context) -> $name<T, Local<'ctx>> {
-                unsafe { $name::from_raw(self.as_raw().to_local(ctx)) }
+                unsafe { $name::from_raw(ctx.new_local_ref(self.as_raw()).unwrap()) }
             }
 
-            pub fn downgrade_weak(&self) -> $name<T, Weak> {
-                unsafe { $name::from_raw(self.as_raw().downgrade_weak()) }
+            pub fn downgrade_weak(&self, ctx: &Context) -> $name<T, Weak> {
+                unsafe { $name::from_raw(ctx.new_weak_global_ref(self.as_raw()).unwrap()) }
             }
         }
 
         impl<T: ObjectType, R: WeakRef> $name<T, R> {
-            pub fn upgrade_global(&self) -> Option<$name<T, Global>> {
-                unsafe { self.as_raw().upgrade_global().map(|r| $name::from_raw(r)) }
+            pub fn upgrade_global(&self, ctx: &Context) -> Option<$name<T, Global>> {
+                unsafe { ctx.new_global_ref(self.as_raw()).map(|r| $name::from_raw(r)) }
             }
 
             pub fn upgrade_local<'ctx>(&self, ctx: &'ctx Context) -> Option<$name<T, Local<'ctx>>> {
-                unsafe { self.as_raw().upgrade_local(ctx).map(|r| $name::from_raw(r)) }
+                unsafe { ctx.new_local_ref(self.as_raw()).map(|r| $name::from_raw(r)) }
             }
         }
 
@@ -279,30 +226,45 @@ macro_rules! impl_common {
                 &self,
                 ctx: &'ctx Context,
                 class: &Class<NT, NR>,
-            ) -> Result<$name<NT, Local<'ctx>>, ClassCastException> {
-                if self.is_instance_of(ctx, class) {
-                    unsafe { Ok($name::from_raw(self.as_raw().to_local(ctx))) }
-                } else {
-                    Err(ClassCastException)
+            ) -> Result<$name<NT, Local<'ctx>>, LocalObject<'ctx, JavaThrowable>> {
+                unsafe {
+                    if self.is_instance_of(ctx, class) {
+                        Ok($name::from_raw(ctx.new_local_ref(self.as_raw()).unwrap()))
+                    } else {
+                        Err(LocalObject::from_raw(
+                            ctx.new_class_cast_exception().unwrap_or_else(|e| e),
+                        ))
+                    }
                 }
             }
         }
 
         impl<T: ObjectType, R: StrongRef> Debug for $name<T, R> {
             fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-                f.write_str(&object_to_string(self.as_raw()))
-            }
-        }
-
-        impl<T: ObjectType, R: StrongRef> Display for $name<T, R> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-                f.write_str(&object_to_string(self.as_raw()))
+                Context::with_attached(|ctx| match self.reference.to_string(ctx) {
+                    Ok(s) => f.write_str(&s),
+                    Err(_) => f.write_str("<exception>"),
+                })
             }
         }
 
         impl<T: ObjectType, R: Ref> PartialEq for $name<T, R> {
             fn eq(&self, other: &Self) -> bool {
-                ref_equal(self.as_raw(), other.as_raw())
+                Context::with_attached(|ctx| ctx.is_same_object(Some(self.as_raw()), Some(other.as_raw())))
+            }
+        }
+
+        impl<T: ObjectType, R: StrongRef> $name<T, R> {
+            pub fn to_string<'ctx>(&self, ctx: &'ctx Context) -> Result<String, LocalObject<'ctx, JavaThrowable>> {
+                self.as_raw()
+                    .to_string(ctx)
+                    .map_err(|err| unsafe { LocalObject::from_raw(err) })
+            }
+
+            pub fn hash_code<'ctx>(&self, ctx: &'ctx Context) -> Result<i32, LocalObject<'ctx, JavaThrowable>> {
+                self.as_raw()
+                    .hash_code(ctx)
+                    .map_err(|err| unsafe { LocalObject::from_raw(err) })
             }
         }
     };
@@ -312,7 +274,7 @@ impl_common!(Class);
 impl_common!(Object);
 
 impl<'ctx, T: ObjectType> Class<T, Local<'ctx>> {
-    pub fn find_class(ctx: &'ctx Context) -> Result<Self, LocalObject<'ctx, Throwable>> {
+    pub fn find_class(ctx: &'ctx Context) -> Result<Self, LocalObject<'ctx, JavaThrowable>> {
         fn class_name_of(signature: &Signature) -> Cow<'static, str> {
             match signature {
                 Signature::Void => Cow::Borrowed("V"),
@@ -333,10 +295,12 @@ impl<'ctx, T: ObjectType> Class<T, Local<'ctx>> {
 
         let class_name = CString::new(class_name.into_owned()).unwrap();
 
-        ctx.find_class(&class_name).map(|r| Self {
-            reference: r,
-            typ: PhantomData,
-        })
+        ctx.find_class(&class_name)
+            .map(|r| Self {
+                reference: r,
+                typ: PhantomData,
+            })
+            .map_err(|err| unsafe { LocalObject::from_raw(err) })
     }
 }
 
@@ -365,7 +329,7 @@ fn call_method<'ctx, 't, 'a, const STATIC: bool, T, R, A>(
     this: &T,
     name: &'static str,
     args: A,
-) -> Result<R, LocalObject<'ctx, Throwable>>
+) -> Result<R, LocalObject<'ctx, JavaThrowable>>
 where
     T: AsRaw,
     T::Raw: StrongRef,
@@ -386,7 +350,11 @@ where
 
     let raw_args = args.into_raw();
 
-    unsafe { ctx.call_method(this.as_raw(), method, raw_args).map(|v| R::from_raw(v)) }
+    unsafe {
+        ctx.call_method(this.as_raw(), method, raw_args)
+            .map(|v| R::from_raw(v))
+            .map_err(|err| LocalObject::from_raw(err))
+    }
 }
 
 impl<T: ObjectType, R: StrongRef> Object<T, R> {
@@ -395,7 +363,7 @@ impl<T: ObjectType, R: StrongRef> Object<T, R> {
         ctx: &'ctx Context,
         name: &'static str,
         args: A,
-    ) -> Result<V, LocalObject<'ctx, Throwable>>
+    ) -> Result<V, LocalObject<'ctx, JavaThrowable>>
     where
         V: Type,
         V: FromRaw,
@@ -414,7 +382,7 @@ impl<T: ObjectType, R: StrongRef> Class<T, R> {
         ctx: &'ctx Context,
         name: &'static str,
         args: A,
-    ) -> Result<V, LocalObject<'ctx, Throwable>>
+    ) -> Result<V, LocalObject<'ctx, JavaThrowable>>
     where
         V: Type,
         V: FromRaw,
@@ -432,7 +400,7 @@ impl<T: ObjectType, R: StrongRef> Class<T, R> {
         &self,
         ctx: &'ctx Context,
         args: A,
-    ) -> Result<LocalObject<'ctx, T>, LocalObject<'ctx, Throwable>>
+    ) -> Result<LocalObject<'ctx, T>, LocalObject<'ctx, JavaThrowable>>
     where
         A: Args<'args>,
         A::Array<Signature>: AsRef<[Signature]>,
@@ -442,7 +410,11 @@ impl<T: ObjectType, R: StrongRef> Class<T, R> {
         let method: Method<false> = resolver::find_method::<false, _, A, ()>(ctx, self.as_raw(), "<init>")?;
 
         let raw_args = args.into_raw();
-        unsafe { ctx.new_object(self.as_raw(), method, raw_args).map(|v| Object::from_raw(v)) }
+        unsafe {
+            ctx.new_object(self.as_raw(), method, raw_args)
+                .map(|v| Object::from_raw(v))
+                .map_err(|err| LocalObject::<JavaThrowable>::from_raw(err))
+        }
     }
 }
 
@@ -450,7 +422,7 @@ fn get_field<'ctx, const STATIC: bool, T, R>(
     ctx: &'ctx Context,
     this: &T,
     name: &'static str,
-) -> Result<R, LocalObject<'ctx, Throwable>>
+) -> Result<R, LocalObject<'ctx, JavaThrowable>>
 where
     T: AsRaw,
     T::Raw: StrongRef,
@@ -465,11 +437,16 @@ where
         resolver::find_field::<STATIC, _, R>(ctx, &class, name)?
     };
 
-    unsafe { Ok(R::from_raw(ctx.get_field(this.as_raw(), field))) }
+    unsafe {
+        Ok(R::from_raw(
+            ctx.get_field(this.as_raw(), field)
+                .map_err(|err| LocalObject::from_raw(err))?,
+        ))
+    }
 }
 
 impl<T: ObjectType, R: StrongRef> Object<T, R> {
-    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, LocalObject<'ctx, Throwable>>
+    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, LocalObject<'ctx, JavaThrowable>>
     where
         V: FromRaw + Type,
         V::Raw: GetReturn<'ctx>,
@@ -479,7 +456,7 @@ impl<T: ObjectType, R: StrongRef> Object<T, R> {
 }
 
 impl<T: ObjectType, R: StrongRef> Class<T, R> {
-    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, LocalObject<'ctx, Throwable>>
+    pub fn get_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str) -> Result<V, LocalObject<'ctx, JavaThrowable>>
     where
         V: FromRaw + Type,
         V::Raw: GetReturn<'ctx>,
@@ -493,7 +470,7 @@ fn set_field<'ctx, const STATIC: bool, T, V>(
     this: &T,
     name: &'static str,
     value: V,
-) -> Result<(), LocalObject<'ctx, Throwable>>
+) -> Result<(), LocalObject<'ctx, JavaThrowable>>
 where
     T: AsRaw,
     T::Raw: StrongRef,
@@ -508,11 +485,19 @@ where
         resolver::find_field::<STATIC, _, V>(ctx, &class, name)?
     };
 
-    unsafe { Ok(ctx.set_field(this.as_raw(), field, value.into_raw())) }
+    unsafe {
+        ctx.set_field(this.as_raw(), field, value.into_raw())
+            .map_err(|err| LocalObject::from_raw(err))
+    }
 }
 
 impl<T: ObjectType, R: StrongRef> Object<T, R> {
-    pub fn set_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str, value: V) -> Result<(), LocalObject<'ctx, Throwable>>
+    pub fn set_field<'ctx, V>(
+        &self,
+        ctx: &'ctx Context,
+        name: &'static str,
+        value: V,
+    ) -> Result<(), LocalObject<'ctx, JavaThrowable>>
     where
         V: IntoRaw + Type,
         V::Raw: SetArg,
@@ -522,7 +507,12 @@ impl<T: ObjectType, R: StrongRef> Object<T, R> {
 }
 
 impl<T: ObjectType, R: StrongRef> Class<T, R> {
-    pub fn set_field<'ctx, V>(&self, ctx: &'ctx Context, name: &'static str, value: V) -> Result<(), LocalObject<'ctx, Throwable>>
+    pub fn set_field<'ctx, V>(
+        &self,
+        ctx: &'ctx Context,
+        name: &'static str,
+        value: V,
+    ) -> Result<(), LocalObject<'ctx, JavaThrowable>>
     where
         V: IntoRaw + Type,
         V::Raw: SetArg,
