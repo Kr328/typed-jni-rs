@@ -1,5 +1,6 @@
 use alloc::string::String;
 use core::{
+    fmt::Display,
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
@@ -22,6 +23,18 @@ macro_rules! define_object_builtin {
 }
 
 define_object_builtin!(JavaThrowable, "java/lang/Throwable");
+
+impl<R: StrongRef> Display for Object<JavaThrowable, R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Context::with_attached(|ctx| match self.to_string(ctx) {
+            Ok(msg) => f.write_str(&msg),
+            Err(_) => f.write_str("<exception>"),
+        })
+    }
+}
+
+#[cfg(feature = "std")]
+impl<R: StrongRef> std::error::Error for Object<JavaThrowable, R> {}
 
 define_object_builtin!(JavaObject, "java/lang/Object");
 
