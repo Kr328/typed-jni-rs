@@ -2,7 +2,9 @@ use std::{path::Path, process::Stdio};
 
 use example::JavaExample;
 use jni::JavaVM;
-use typed_jni::{Context, JavaString, LocalClass, LocalObject, NoArgs, Type, define_java_class};
+use typed_jni::{
+    DynArg, LocalClass, LocalObject, Type, TypedCallExt, TypedClassExt, TypedFieldAccessExt, TypedStringExt, define_java_class,
+};
 
 define_java_class!(JavaSystem, "java.lang.System");
 define_java_class!(JavaPrintStream, "java.io.PrintStream");
@@ -43,45 +45,33 @@ fn main() {
     )
     .unwrap();
 
-    typed_jni::attach_vm(vm.get_java_vm_pointer() as _);
-
     let env = vm.attach_current_thread().unwrap();
-    let ctx = unsafe { Context::from_raw(env.get_raw() as _) };
+
+    let env = unsafe { typed_jni::core::JNIEnv::from_raw(env.get_raw() as _) };
 
     unsafe {
-        let obj = ctx.find_class(c"java/lang/Object").unwrap();
-        let str = ctx.find_class(c"java/lang/String").unwrap();
+        let obj = env.find_class(c"java/lang/Object").unwrap();
+        let str = env.find_class(c"java/lang/String").unwrap();
 
-        println!("{}", ctx.is_assignable_from(&str, &obj));
+        println!("{}", env.is_assignable_from(&str, &obj));
 
-        let c_str = ctx.get_object_class(&str);
+        let c_str = env.get_object_class(&str);
         drop(c_str);
     }
 
-    let c_system = LocalClass::<JavaSystem>::find_class(&ctx).unwrap();
-    let o_out: LocalObject<JavaPrintStream> = c_system.get_field(&ctx, "out").unwrap();
+    let c_system: LocalClass<JavaSystem> = env.typed_find_class().unwrap();
+    let o_out: LocalObject<JavaPrintStream> = env.typed_get_field(&c_system, "out").unwrap();
 
-    o_out
-        .call_method::<(), _>(&ctx, "println", &LocalObject::<JavaString>::new_string(&ctx, "Hello World!"))
+    env.typed_call_method::<(), _, _>(&o_out, "println", &[&env.typed_new_string("Hello World!") as &dyn DynArg])
         .unwrap();
 
-    o_out
-        .call_method::<(), _>(
-            &ctx,
-            "println",
-            &LocalObject::<JavaString>::new_string(&ctx, "Hello World!!!!"),
-        )
+    env.typed_call_method::<(), _, _>(&o_out, "println", (env.typed_new_string("Hello World!!!!"),))
         .unwrap();
 
-    o_out
-        .call_method::<(), _>(
-            &ctx,
-            "println",
-            &LocalObject::<JavaString>::new_string(&ctx, "Hello World!!!!!!!!!"),
-        )
+    env.typed_call_method::<(), _, _>(&o_out, "println", (env.typed_new_string("Hello World!!!!!!!!!"),))
         .unwrap();
 
-    let v = LocalClass::<JavaExample>::find_class(ctx).unwrap();
+    let v: LocalClass<JavaExample> = env.typed_find_class().unwrap();
 
-    let _: () = v.call_method(&ctx, "run", NoArgs).unwrap();
+    let _: () = env.typed_call_method(&v, "run", ()).unwrap();
 }

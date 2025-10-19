@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["example", "jni"]
+members = ["core", "example", "jni", "tests"]
 
 [workspace.package]
-version = "0.5.2"
+version = "1.0.0"
 edition = "2024"

@@ -10,4 +10,6 @@ cache = ["uluru", "std"]
 default = ["cache", "std"]
 
 [dependencies]
+typed-jni-core = { path = "../core", features = ["alloc"] }
+
 uluru = { version = "3.1", optional = true }

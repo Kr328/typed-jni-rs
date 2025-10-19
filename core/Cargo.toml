@@ -1,0 +1,10 @@
+[package]
+name = "typed-jni-core"
+version.workspace = true
+edition.workspace = true
+
+[features]
+alloc = []
+default = ["alloc"]
+
+[dependencies]
