@@ -1,12 +1,9 @@
-#[cfg(test)]
-mod tests;
-
 use typed_jni::{TrampolineClass, TrampolineObject, TypedStringExt, builtin::JavaString, core::JNIEnv, define_java_class};
 
 define_java_class!(JavaExample, "com.github.kr328.typedjni.Example");
 
 #[unsafe(no_mangle)]
-pub extern "C" fn Java_com_github_kr328_typedjni_Example_nativeFunction<'ctx>(
+pub extern "system" fn Java_com_github_kr328_typedjni_Example_nativeFunction<'ctx>(
     env: &'ctx JNIEnv<'static>,
     _class: TrampolineClass<'ctx, JavaExample>,
     value: i32,

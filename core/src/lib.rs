@@ -7,6 +7,7 @@
 //! ## Features
 //!
 //! - `alloc`: Enables the use of `alloc` crate for dynamic memory allocation. (default)
+//! - `print-throwable`: Enables the printing of throwable objects.
 
 #[cfg(feature = "alloc")]
 extern crate alloc;

@@ -3,8 +3,8 @@ use alloc::{borrow::Cow, ffi::CString, format};
 use typed_jni_core::{Arg, JNIEnv, StrongRef};
 
 use crate::{
-    Class, LocalClass, LocalObject, Object, ObjectType, Signature, TypedRef,
-    builtin::{JavaClassLoader, JavaThrowable},
+    LocalClass, LocalObject, Object, ObjectType, Signature, TypedRef,
+    builtin::{JavaClass, JavaClassLoader, JavaThrowable},
     resolver,
 };
 
@@ -44,15 +44,15 @@ pub trait TypedClassExt {
     fn typed_find_class<T: ObjectType>(&self) -> Result<LocalClass<'_, T>, LocalObject<'_, JavaThrowable>>;
 
     /// Finds a class with the given type `T` in the given class loader.
-    fn typed_find_class_in_class_loader<R: StrongRef, T: ObjectType>(
+    fn typed_find_class_in_class_loader<T: ObjectType, R: StrongRef>(
         &self,
         class_loader: &Object<R, JavaClassLoader>,
     ) -> Result<LocalClass<'_, T>, LocalObject<'_, JavaThrowable>>;
 
-    /// Returns the class loader of the given class `T`.
-    fn typed_get_class_loader<R: StrongRef, T: ObjectType>(
+    /// Returns the class loader of the given class object.
+    fn typed_get_class_loader<R: StrongRef>(
         &self,
-        obj: &Class<R, T>,
+        cls: &Object<R, JavaClass>,
     ) -> Result<Option<LocalObject<'_, JavaClassLoader>>, LocalObject<'_, JavaThrowable>>;
 }
 
@@ -67,19 +67,19 @@ impl<'vm> TypedClassExt for JNIEnv<'vm> {
         }
     }
 
-    fn typed_find_class_in_class_loader<R: StrongRef, T: ObjectType>(
+    fn typed_find_class_in_class_loader<T: ObjectType, R: StrongRef>(
         &self,
         class_loader: &Object<R, JavaClassLoader>,
     ) -> Result<LocalClass<'_, T>, LocalObject<'_, JavaThrowable>> {
         unsafe {
-            let method = resolver::resolve_class_and_method_raw::<true>(
+            let (_, method) = resolver::resolve_class_and_method_raw::<true>(
                 self,
                 c"java/lang/Class",
                 c"forName",
                 c"(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;",
             )?;
 
-            let class_name = self.new_string(class_name_of(T::SIGNATURE, true));
+            let class_name = self.new_string(class_name_of(T::SIGNATURE, false));
 
             self.call_object_method(
                 &**class_loader,
@@ -95,19 +95,19 @@ impl<'vm> TypedClassExt for JNIEnv<'vm> {
         }
     }
 
-    fn typed_get_class_loader<R: StrongRef, T: ObjectType>(
+    fn typed_get_class_loader<R: StrongRef>(
         &self,
-        obj: &Class<R, T>,
+        cls: &Object<R, JavaClass>,
     ) -> Result<Option<LocalObject<'_, JavaClassLoader>>, LocalObject<'_, JavaThrowable>> {
         unsafe {
-            let method = resolver::resolve_class_and_method_raw::<true>(
+            let (_, method) = resolver::resolve_class_and_method_raw::<false>(
                 self,
                 c"java/lang/Class",
                 c"getClassLoader",
                 c"()Ljava/lang/ClassLoader;",
             )?;
 
-            self.call_object_method(&**obj, method, [])
+            self.call_object_method(&**cls, method, [])
                 .map(|v| v.map(|v| LocalObject::from_ref(v)))
                 .map_err(|err| LocalObject::from_ref(err))
         }

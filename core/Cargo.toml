@@ -5,6 +5,7 @@ edition.workspace = true
 
 [features]
 alloc = []
+print-throwable = []
 default = ["alloc"]
 
 [dependencies]

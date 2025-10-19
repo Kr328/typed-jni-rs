@@ -49,16 +49,6 @@ fn main() {
 
     let env = unsafe { typed_jni::core::JNIEnv::from_raw(env.get_raw() as _) };
 
-    unsafe {
-        let obj = env.find_class(c"java/lang/Object").unwrap();
-        let str = env.find_class(c"java/lang/String").unwrap();
-
-        println!("{}", env.is_assignable_from(&str, &obj));
-
-        let c_str = env.get_object_class(&str);
-        drop(c_str);
-    }
-
     let c_system: LocalClass<JavaSystem> = env.typed_find_class().unwrap();
     let o_out: LocalObject<JavaPrintStream> = env.typed_get_field(&c_system, "out").unwrap();
 

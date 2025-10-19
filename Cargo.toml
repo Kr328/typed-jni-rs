@@ -5,3 +5,7 @@ members = ["core", "example", "jni", "tests"]
 [workspace.package]
 version = "1.0.0"
 edition = "2024"
+
+[workspace.dependencies]
+typed-jni-core = { path = "core", version = "1.0.0", default-features = false }
+typed-jni = { path = "jni", version = "1.0.0", default-features = false }

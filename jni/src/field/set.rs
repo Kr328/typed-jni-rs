@@ -1,6 +1,6 @@
-use typed_jni_core::{JNIEnv, StrongRef};
+use typed_jni_core::{JNIEnv, LocalRef, StrongRef};
 
-use crate::{LocalObject, Object, ObjectType, TypedRef, builtin::JavaThrowable, core::FieldID};
+use crate::{LocalObject, Null, Object, ObjectType, TypedRef, builtin::JavaThrowable, core::FieldID};
 
 pub unsafe trait Value {
     unsafe fn set_on<'env, const STATIC: bool, R: StrongRef>(
@@ -26,6 +26,7 @@ macro_rules! impl_value_for_primitive {
     };
 }
 
+impl_value_for_primitive!(bool, set_boolean_field);
 impl_value_for_primitive!(i8, set_byte_field);
 impl_value_for_primitive!(u16, set_char_field);
 impl_value_for_primitive!(i16, set_short_field);
@@ -58,3 +59,17 @@ impl_value_for_object!(Option<Object<Ref, Type>>, value, { value.as_ref().map(|v
 impl_value_for_object!(Option<&Object<Ref, Type>>, value, { value.as_ref().map(|v| &***v) });
 impl_value_for_object!(Object<Ref, Type>, value, { Some(&*value) });
 impl_value_for_object!(&Object<Ref, Type>, value, { Some(&**value) });
+
+unsafe impl<T: ObjectType> Value for Null<T> {
+    unsafe fn set_on<'env, const STATIC: bool, R: StrongRef>(
+        self,
+        env: &'env JNIEnv,
+        this: &R,
+        field: FieldID<STATIC>,
+    ) -> Result<(), LocalObject<'env, JavaThrowable>> {
+        unsafe {
+            env.set_object_field(this, field, Option::<&LocalRef>::None)
+                .map_err(|err| LocalObject::from_ref(err))
+        }
+    }
+}

@@ -59,7 +59,7 @@ impl<'vm> JNIEnv<'vm> {
             let ret = match NonNull::new(call!(self.as_raw_ptr(), ExceptionOccurred)) {
                 None => Ok(ret),
                 Some(ex) => {
-                    #[cfg(debug_assertions)]
+                    #[cfg(feature = "print-throwable")]
                     call!(self.as_raw_ptr(), ExceptionDescribe);
 
                     call!(self.as_raw_ptr(), ExceptionClear);

@@ -1,11 +1,21 @@
-use alloc::string::String;
+use alloc::{format, string::String};
 
-use typed_jni_core::{JNIEnv, StrongRef};
+use typed_jni_core::{Arg, JNIEnv, StrongRef};
 
-use crate::{Class, LocalObject, Object, ObjectType, TypedRef, builtin::JavaThrowable, resolver};
+use crate::{
+    Class, LocalObject, Object, ObjectType, TypedRef,
+    builtin::{JavaClass, JavaThrowable},
+    resolver,
+};
 
 /// Extension methods for typed object maintenance.
 pub trait TypedObjectExt {
+    /// Returns the class of the object.
+    fn typed_get_object_class<O>(&self, obj: &O) -> LocalObject<'_, JavaClass>
+    where
+        O: TypedRef,
+        O::Target: StrongRef + Sized;
+
     /// Returns whether the object is an instance of the class.
     fn typed_is_instance_of<'env, FT: ObjectType, TT: ObjectType, FR: StrongRef, TR: StrongRef>(
         &'env self,
@@ -41,6 +51,14 @@ pub trait TypedObjectExt {
 }
 
 impl<'vm> TypedObjectExt for JNIEnv<'vm> {
+    fn typed_get_object_class<O>(&self, obj: &O) -> LocalObject<'_, JavaClass>
+    where
+        O: TypedRef,
+        O::Target: StrongRef + Sized,
+    {
+        unsafe { LocalObject::from_ref(self.get_object_class(&**obj)) }
+    }
+
     fn typed_is_instance_of<'env, FT: ObjectType, TT: ObjectType, FR: StrongRef, TR: StrongRef>(
         &'env self,
         obj: &Object<FR, FT>,
@@ -68,7 +86,25 @@ impl<'vm> TypedObjectExt for JNIEnv<'vm> {
                     self.new_local_ref(&**obj).expect("BROKEN: create new local reference failed"),
                 ))
             } else {
-                todo!("return ClassCastException")
+                let (cls, method) = resolver::resolve_class_and_method_raw(
+                    self,
+                    c"java/lang/ClassCastException",
+                    c"<init>",
+                    c"(Ljava/lang/String;)V",
+                )?;
+
+                match self.new_object(
+                    &cls,
+                    method,
+                    [Arg::Object(Some(&self.new_string(format!(
+                        "Object<{}> cannot cast to Class<{}>",
+                        FT::SIGNATURE,
+                        TT::SIGNATURE
+                    ))))],
+                ) {
+                    Ok(ex) => Err(LocalObject::from_ref(ex)),
+                    Err(err) => Err(LocalObject::from_ref(err)),
+                }
             }
         }
     }
@@ -79,7 +115,7 @@ impl<'vm> TypedObjectExt for JNIEnv<'vm> {
         O::Target: StrongRef + Sized,
     {
         unsafe {
-            let method =
+            let (_, method) =
                 resolver::resolve_class_and_method_raw::<false>(self, c"java/lang/Object", c"toString", c"()Ljava/lang/String;")?;
 
             let s = self
@@ -98,7 +134,7 @@ impl<'vm> TypedObjectExt for JNIEnv<'vm> {
         O::Target: StrongRef + Sized,
     {
         unsafe {
-            let method = resolver::resolve_class_and_method_raw::<false>(self, c"java/lang/Object", c"hashCode", c"()I")?;
+            let (_, method) = resolver::resolve_class_and_method_raw::<false>(self, c"java/lang/Object", c"hashCode", c"()I")?;
 
             let c = self
                 .call_int_method(&**obj, method, [])
