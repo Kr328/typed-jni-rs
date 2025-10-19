@@ -122,7 +122,17 @@ impl<'vm> TypedObjectExt for JNIEnv<'vm> {
                 .call_object_method(&**obj, method, [])
                 .map_err(|err| LocalObject::from_ref(err))?;
 
-            let s = s.unwrap(); // TODO: throw null pointer exception
+            let s = match s {
+                Some(s) => s,
+                None => {
+                    let (cls, method) =
+                        resolver::resolve_class_and_method_raw(self, c"java/lang/NullPointerException", c"<init>", c"()V")?;
+
+                    return Err(LocalObject::from_ref(
+                        self.new_object(&cls, method, []).unwrap_or_else(|ex| ex),
+                    ));
+                }
+            };
 
             Ok(self.get_string(&s))
         }

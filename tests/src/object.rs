@@ -148,6 +148,36 @@ fn test_typed_to_string() {
 }
 
 #[test]
+fn test_typed_to_string_null() {
+    with_java_vm(|env| {
+        define_java_class!(JavaTest, "Test");
+
+        let (_dir, loader) = compile_file_and_load_classes(
+            env,
+            "Test",
+            r#"public class Test {
+                @Override
+                public String toString() {
+                    return null;
+                }
+            }"#,
+        );
+
+        let c_test: LocalClass<JavaTest> = env.typed_find_class_in_class_loader(&loader).unwrap();
+        let o_test: LocalObject<JavaTest> = env.typed_new_object(&c_test, ()).unwrap();
+
+        // 测试对象的toString方法
+        let string_result = env.typed_to_string(&o_test);
+        assert!(string_result.is_err());
+        assert!(
+            env.typed_to_string(&string_result.err().unwrap())
+                .unwrap()
+                .contains("NullPointerException")
+        );
+    })
+}
+
+#[test]
 fn test_typed_hash_code() {
     with_java_vm(|env| {
         define_java_class!(JavaTest, "Test");
