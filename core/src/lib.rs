@@ -7,7 +7,7 @@
 //! ## Example
 //!
 //! ```rust
-//! use typed_jni::core::{Arg, FieldID, JNIEnv, LocalRef, MethodID};
+//! use typed_jni_core::{Arg, FieldID, JNIEnv, LocalRef, MethodID};
 //!
 //! pub fn run_jni(env: &JNIEnv) {
 //!     unsafe {
