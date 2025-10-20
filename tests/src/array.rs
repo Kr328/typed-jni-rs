@@ -98,16 +98,18 @@ fn test_bytes_access() {
         let array: LocalObject<Array<i8>> = env.typed_new_primitive_array::<i8>(s.as_bytes().len() as _).unwrap();
 
         let mut elements = env.typed_get_bytes_array_elements(&array).unwrap();
-
         elements.copy_from_slice(s.as_bytes());
-
         elements.commit();
 
         let java_s: LocalClass<JavaString> = env.typed_find_class::<JavaString>().unwrap();
-        let java_s: LocalObject<JavaString> = env.typed_new_object(&java_s, (&array,)).unwrap();
+        let java_s: LocalObject<JavaString> = env
+            .typed_new_object(&java_s, (&array, env.typed_new_string("UTF-8")))
+            .unwrap();
         assert_eq!(env.typed_get_string(&java_s), s);
 
-        let array: LocalObject<Array<i8>> = env.typed_call_method(&java_s, "getBytes", ()).unwrap();
+        let array: LocalObject<Array<i8>> = env
+            .typed_call_method(&java_s, "getBytes", (env.typed_new_string("UTF-8"),))
+            .unwrap();
         assert_eq!(&*env.typed_get_bytes_array_elements(&array).unwrap(), s.as_bytes());
     })
 }
