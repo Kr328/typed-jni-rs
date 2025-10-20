@@ -8,13 +8,13 @@ use crate::{LocalObject, Null, Object, ObjectType, Signature, Type, builtin::Jav
 /// - Primitives: `bool`, `i8`, `u16`, `i16`, `i32`, `i64`, `f32`, `f64`
 /// - Any [Object] with [`StrongRef`]: `Object<impl StrongRef, Type>`, `Option<Object<impl StrongRef, Type>>`
 /// - Any reference to [Object] with [`StrongRef`]: `&Object<impl StrongRef, Type>`, `Option<&Object<impl StrongRef, Type>>`
-pub unsafe trait ToArg {
+pub trait ToArg {
     fn to_arg(&self) -> Arg<'_>;
 }
 
 macro_rules! impl_to_arg_primitive {
     ($t:ty, $variant:ident) => {
-        unsafe impl ToArg for $t {
+        impl ToArg for $t {
             fn to_arg(&self) -> Arg<'_> {
                 Arg::$variant(*self)
             }
@@ -31,13 +31,13 @@ impl_to_arg_primitive!(i64, Long);
 impl_to_arg_primitive!(f32, Float);
 impl_to_arg_primitive!(f64, Double);
 
-unsafe impl<R: StrongRef, T: ObjectType> ToArg for Object<R, T> {
+impl<R: StrongRef, T: ObjectType> ToArg for Object<R, T> {
     fn to_arg(&self) -> Arg<'_> {
         Arg::Object(Some(&**self))
     }
 }
 
-unsafe impl<R: StrongRef, T: ObjectType> ToArg for Option<Object<R, T>> {
+impl<R: StrongRef, T: ObjectType> ToArg for Option<Object<R, T>> {
     fn to_arg(&self) -> Arg<'_> {
         match self {
             Some(obj) => Arg::Object(Some(&**obj)),
@@ -46,13 +46,13 @@ unsafe impl<R: StrongRef, T: ObjectType> ToArg for Option<Object<R, T>> {
     }
 }
 
-unsafe impl<R: StrongRef, T: ObjectType> ToArg for &Object<R, T> {
+impl<R: StrongRef, T: ObjectType> ToArg for &Object<R, T> {
     fn to_arg(&self) -> Arg<'_> {
         Arg::Object(Some(&***self))
     }
 }
 
-unsafe impl<R: StrongRef, T: ObjectType> ToArg for Option<&Object<R, T>> {
+impl<R: StrongRef, T: ObjectType> ToArg for Option<&Object<R, T>> {
     fn to_arg(&self) -> Arg<'_> {
         match self {
             Some(obj) => Arg::Object(Some(&***obj)),
@@ -61,16 +61,25 @@ unsafe impl<R: StrongRef, T: ObjectType> ToArg for Option<&Object<R, T>> {
     }
 }
 
-unsafe impl<T: ObjectType> ToArg for Null<T> {
+impl<T: ObjectType> ToArg for Null<T> {
     fn to_arg(&self) -> Arg<'_> {
         Arg::Object(None)
     }
 }
 
 /// Args to be applied to a JNI call.
+///
+/// # Safety
+///
+/// The implementer must ensure that the `signature` matches the signature of the arguments.
 pub unsafe trait Args: Sized {
     fn signature(&self) -> impl IntoIterator<Item = Signature> + Clone + '_;
 
+    /// Apply the arguments to a JNI call.
+    ///
+    /// # Safety
+    ///
+    /// The implementer must ensure that the `signature` matches the signature of the arguments.
     unsafe fn apply_on<'env, const STATIC: bool, T, R>(
         self,
         env: &'env JNIEnv,

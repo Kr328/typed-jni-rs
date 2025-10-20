@@ -101,7 +101,7 @@ impl<'vm> TypedPrimitiveArrayExt for JNIEnv<'vm> {
         len: i32,
     ) -> Result<LocalObject<'_, Array<T>>, LocalObject<'_, JavaThrowable>> {
         unsafe {
-            T::new(self, len)
+            T::new_instance(self, len)
                 .map(|arr| LocalObject::from_ref(arr))
                 .map_err(|err| LocalObject::from_ref(err))
         }

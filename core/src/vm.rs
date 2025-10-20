@@ -21,7 +21,7 @@ impl JavaVM {
         unsafe {
             assert!(!raw.is_null());
 
-            core::mem::transmute(raw)
+            &*(raw as *const Self)
         }
     }
 
@@ -53,7 +53,9 @@ impl JavaVM {
 
     fn run_hook(&self, hook: &AtomicUsize) {
         unsafe {
-            if let Some(hook) = core::mem::transmute::<_, Option<AttachHook>>(hook.load(core::sync::atomic::Ordering::Relaxed)) {
+            if let Some(hook) =
+                core::mem::transmute::<usize, Option<AttachHook>>(hook.load(core::sync::atomic::Ordering::Relaxed))
+            {
                 hook(self);
             }
         }
@@ -127,6 +129,10 @@ impl JavaVM {
     }
 
     /// Detach the current thread from the Java VM.
+    ///
+    /// # Safety
+    ///
+    /// This operation may break state of current thread
     pub unsafe fn detach_current_thread(&self) -> Result<(), AttachError> {
         unsafe {
             self.run_hook(&ON_DETACH);

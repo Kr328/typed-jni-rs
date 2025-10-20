@@ -9,7 +9,7 @@ use typed_jni_core::JNIEnv;
 
 use crate::{LocalObject, Signature, builtin::JavaThrowable, throwable};
 
-pub fn build_class_name<'env, 's>(
+pub fn build_class_name<'env>(
     env: &'env JNIEnv,
     signature: Signature,
     convert_to_fully_qualified_name: bool,
@@ -66,7 +66,7 @@ pub fn build_member_name<'env, 's>(
         return Ok(Cow::Borrowed(s));
     }
 
-    CString::new(name).map(|s| Cow::Owned(s)).map_err(|err| {
+    CString::new(name).map(Cow::Owned).map_err(|err| {
         throwable::helper::new_named_exception(
             env,
             match member {
@@ -96,11 +96,11 @@ pub fn build_method_signature<'env>(
 
     let mut sig = String::with_capacity(capacity);
 
-    sig.push_str("(");
+    sig.push('(');
     for arg in args {
         arg.write_to(&mut sig).unwrap();
     }
-    sig.push_str(")");
+    sig.push(')');
 
     ret.write_to(&mut sig).unwrap();
 

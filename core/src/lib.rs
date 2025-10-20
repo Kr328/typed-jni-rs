@@ -49,7 +49,7 @@ impl<'vm> JNIEnv<'vm> {
         unsafe {
             assert!(!env.is_null());
 
-            core::mem::transmute(env)
+            &*(env as *const Self)
         }
     }
 

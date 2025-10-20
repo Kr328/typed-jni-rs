@@ -70,13 +70,13 @@ impl<'vm> TypedCallExt for JNIEnv<'vm> {
             let signature = resolver::helper::build_method_signature(self, R::SIGNATURE, args.signature())?;
 
             if T::STATIC {
-                let method = resolver::resolve_method::<true, _>(self, &**this, &*name, &signature)?;
+                let method = resolver::resolve_method::<true, _>(self, &**this, &name, &signature)?;
 
                 args.apply_on(self, &**this, method)
             } else {
                 let cls = self.get_object_class(&**this);
 
-                let method = resolver::resolve_method::<false, _>(self, &cls, &*name, &signature)?;
+                let method = resolver::resolve_method::<false, _>(self, &cls, &name, &signature)?;
 
                 args.apply_on(self, &**this, method)
             }

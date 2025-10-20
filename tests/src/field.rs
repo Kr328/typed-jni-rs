@@ -21,8 +21,8 @@ fn test_get_set_static_field() {
                 public static short staticShort = 32767;
                 public static int staticInt = 2147483647;
                 public static long staticLong = 9223372036854775807L;
-                public static float staticFloat = 3.14f;
-                public static double staticDouble = 2.71828;
+                public static float staticFloat = (float) java.lang.Math.PI;
+                public static double staticDouble = (double) java.lang.Math.E;
                 public static String staticString = "Hello, World";
             }"#,
         );
@@ -31,7 +31,7 @@ fn test_get_set_static_field() {
 
         // Test getting static fields
         let boolean_val: bool = env.typed_get_field(&c_test, "staticBoolean").unwrap();
-        assert_eq!(boolean_val, true);
+        assert!(boolean_val);
 
         let byte_val: i8 = env.typed_get_field(&c_test, "staticByte").unwrap();
         assert_eq!(byte_val, 127);
@@ -49,7 +49,7 @@ fn test_get_set_static_field() {
         assert_eq!(long_val, 9223372036854775807);
 
         let float_val: f32 = env.typed_get_field(&c_test, "staticFloat").unwrap();
-        assert!((float_val - 3.14f32).abs() < 0.0001);
+        assert!((float_val - std::f32::consts::PI).abs() < 0.0001);
 
         let double_val: f64 = env.typed_get_field(&c_test, "staticDouble").unwrap();
         assert!((double_val - std::f64::consts::E).abs() < 0.00001);
@@ -60,7 +60,7 @@ fn test_get_set_static_field() {
         // Test setting static fields - add write tests for all types
         env.typed_set_field(&c_test, "staticBoolean", false).unwrap();
         let new_boolean_val: bool = env.typed_get_field(&c_test, "staticBoolean").unwrap();
-        assert_eq!(new_boolean_val, false);
+        assert!(!new_boolean_val);
 
         env.typed_set_field(&c_test, "staticByte", -128i8).unwrap();
         let new_byte_val: i8 = env.typed_get_field(&c_test, "staticByte").unwrap();
@@ -112,8 +112,8 @@ fn test_get_set_instance_field() {
                 public short instanceShort = 32767;
                 public int instanceInt = 2147483647;
                 public long instanceLong = 9223372036854775807L;
-                public float instanceFloat = 3.14f;
-                public double instanceDouble = 2.71828;
+                public float instanceFloat = (float) java.lang.Math.PI;
+                public double instanceDouble = (double) java.lang.Math.E;
                 public String instanceString = "Hello, World";
                 
                 public Test() {}
@@ -125,7 +125,7 @@ fn test_get_set_instance_field() {
 
         // Test getting instance fields
         let boolean_val: bool = env.typed_get_field(&o_test, "instanceBoolean").unwrap();
-        assert_eq!(boolean_val, true);
+        assert!(boolean_val);
 
         let byte_val: i8 = env.typed_get_field(&o_test, "instanceByte").unwrap();
         assert_eq!(byte_val, 127);
@@ -143,7 +143,7 @@ fn test_get_set_instance_field() {
         assert_eq!(long_val, 9223372036854775807);
 
         let float_val: f32 = env.typed_get_field(&o_test, "instanceFloat").unwrap();
-        assert!((float_val - 3.14f32).abs() < 0.0001);
+        assert!((float_val - std::f32::consts::PI).abs() < 0.0001);
 
         let double_val: f64 = env.typed_get_field(&o_test, "instanceDouble").unwrap();
         assert!((double_val - std::f64::consts::E).abs() < 0.00001);
@@ -154,7 +154,7 @@ fn test_get_set_instance_field() {
         // Test setting instance fields - add write tests for all types
         env.typed_set_field(&o_test, "instanceBoolean", false).unwrap();
         let new_boolean_val: bool = env.typed_get_field(&o_test, "instanceBoolean").unwrap();
-        assert_eq!(new_boolean_val, false);
+        assert!(!new_boolean_val);
 
         env.typed_set_field(&o_test, "instanceByte", -128i8).unwrap();
         let new_byte_val: i8 = env.typed_get_field(&o_test, "instanceByte").unwrap();

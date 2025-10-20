@@ -17,15 +17,15 @@ pub trait TypedObjectExt {
         O::Target: StrongRef + Sized;
 
     /// Returns whether the object is an instance of the class.
-    fn typed_is_instance_of<'env, FT: ObjectType, TT: ObjectType, FR: StrongRef, TR: StrongRef>(
-        &'env self,
+    fn typed_is_instance_of<FT: ObjectType, TT: ObjectType, FR: StrongRef, TR: StrongRef>(
+        &self,
         obj: &Object<FR, FT>,
         cls: &Class<TR, TT>,
     ) -> bool;
 
     /// Returns whether the class is assignable from the super class.
-    fn typed_is_assignable_from<'env, FT: ObjectType, TT: ObjectType, FR: StrongRef, TR: StrongRef>(
-        &'env self,
+    fn typed_is_assignable_from<FT: ObjectType, TT: ObjectType, FR: StrongRef, TR: StrongRef>(
+        &self,
         cls: &Class<FR, FT>,
         super_cls: &Class<TR, TT>,
     ) -> bool;
@@ -59,16 +59,16 @@ impl<'vm> TypedObjectExt for JNIEnv<'vm> {
         unsafe { LocalObject::from_ref(self.get_object_class(&**obj)) }
     }
 
-    fn typed_is_instance_of<'env, FT: ObjectType, TT: ObjectType, FR: StrongRef, TR: StrongRef>(
-        &'env self,
+    fn typed_is_instance_of<FT: ObjectType, TT: ObjectType, FR: StrongRef, TR: StrongRef>(
+        &self,
         obj: &Object<FR, FT>,
         cls: &Class<TR, TT>,
     ) -> bool {
         unsafe { self.is_instance_of(&**obj, &**cls) }
     }
 
-    fn typed_is_assignable_from<'env, FT: ObjectType, TT: ObjectType, FR: StrongRef, TR: StrongRef>(
-        &'env self,
+    fn typed_is_assignable_from<FT: ObjectType, TT: ObjectType, FR: StrongRef, TR: StrongRef>(
+        &self,
         cls: &Class<FR, FT>,
         super_cls: &Class<TR, TT>,
     ) -> bool {

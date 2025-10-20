@@ -35,13 +35,13 @@ impl<'vm> TypedFieldAccessExt for JNIEnv<'vm> {
             let signature = resolver::helper::build_field_signature(self, R::SIGNATURE)?;
 
             if T::STATIC {
-                let field = resolver::resolve_field::<true, _>(self, &**this, &*name, &signature)?;
+                let field = resolver::resolve_field::<true, _>(self, &**this, &name, &signature)?;
 
                 R::get_of(self, &**this, field)
             } else {
                 let cls = self.get_object_class(&**this);
 
-                let field = resolver::resolve_field::<false, _>(self, &cls, &*name, &signature)?;
+                let field = resolver::resolve_field::<false, _>(self, &cls, &name, &signature)?;
 
                 R::get_of(self, &**this, field)
             }
@@ -59,13 +59,13 @@ impl<'vm> TypedFieldAccessExt for JNIEnv<'vm> {
             let signature = resolver::helper::build_field_signature(self, V::SIGNATURE)?;
 
             if T::STATIC {
-                let field = resolver::resolve_field::<true, _>(self, &**this, &*name, &signature)?;
+                let field = resolver::resolve_field::<true, _>(self, &**this, &name, &signature)?;
 
                 value.set_on(self, &**this, field)
             } else {
                 let cls = self.get_object_class(&**this);
 
-                let field = resolver::resolve_field::<false, _>(self, &cls, &*name, &signature)?;
+                let field = resolver::resolve_field::<false, _>(self, &cls, &name, &signature)?;
 
                 value.set_on(self, &**this, field)
             }

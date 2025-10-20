@@ -1,7 +1,7 @@
 use crate::{JNIEnv, LocalRef, MethodID, StrongRef, helper::call, sys};
 
 /// Argument for a method call.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Arg<'r> {
     Boolean(bool),
     Byte(i8),
@@ -14,30 +14,11 @@ pub enum Arg<'r> {
     Object(Option<&'r dyn StrongRef>),
 }
 
-impl<'r> Clone for Arg<'r> {
-    fn clone(&self) -> Self {
-        match self {
-            Arg::Boolean(v) => Self::Boolean(*v),
-            Arg::Byte(v) => Self::Byte(*v),
-            Arg::Char(v) => Self::Char(*v),
-            Arg::Short(v) => Self::Short(*v),
-            Arg::Int(v) => Self::Int(*v),
-            Arg::Long(v) => Self::Long(*v),
-            Arg::Float(v) => Self::Float(*v),
-            Arg::Double(v) => Self::Double(*v),
-            Arg::Object(v) => Self::Object(*v),
-        }
-    }
-}
-
-impl<'r> Copy for Arg<'r> {}
-
 impl<'r> Arg<'r> {
     #[cfg(debug_assertions)]
     fn enforce_valid_runtime(&self, env: &JNIEnv) {
-        match self {
-            Self::Object(Some(v)) => v.enforce_valid_runtime(env),
-            _ => {}
+        if let Self::Object(Some(v)) = self {
+            v.enforce_valid_runtime(env)
         }
     }
 

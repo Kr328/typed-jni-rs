@@ -2,7 +2,22 @@ use typed_jni_core::{JNIEnv, LocalRef, StrongRef};
 
 use crate::{LocalObject, Null, Object, ObjectType, TypedRef, builtin::JavaThrowable, core::FieldID};
 
+/// This trait is implemented for all types that can be the argument of a field set operation.
+///
+/// Supported Types:
+///
+/// * Primitive types: `bool`, `i8`, `u16`, `i32`, `i64`, `f32`, `f64`
+/// * Object types: `Object<impl StrongRef, Type>`, `Option<Object<impl StrongRef, Type>>`
+///
+/// # Safety
+///
+/// This trait should not be implemented manually.
 pub unsafe trait Value {
+    /// Set the value of a field.
+    ///
+    /// # Safety
+    ///
+    /// * Signature of `Self` must match the signature of `field`.
     unsafe fn set_on<'env, const STATIC: bool, R: StrongRef>(
         self,
         env: &'env JNIEnv,
@@ -55,7 +70,7 @@ macro_rules! impl_value_for_object {
     };
 }
 
-impl_value_for_object!(Option<Object<Ref, Type>>, value, { value.as_ref().map(|v| &**v) });
+impl_value_for_object!(Option<Object<Ref, Type>>, value, { value.as_deref() });
 impl_value_for_object!(Option<&Object<Ref, Type>>, value, { value.as_ref().map(|v| &***v) });
 impl_value_for_object!(Object<Ref, Type>, value, { Some(&*value) });
 impl_value_for_object!(&Object<Ref, Type>, value, { Some(&**value) });

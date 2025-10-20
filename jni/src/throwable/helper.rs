@@ -11,7 +11,7 @@ pub fn new_named_exception<'env>(env: &'env JNIEnv, name: &CStr, msg: &str) -> L
     };
 
     unsafe {
-        match env.new_object(&cls, method, [Arg::Object(Some(&env.new_string(&msg)))]) {
+        match env.new_object(&cls, method, [Arg::Object(Some(&env.new_string(msg)))]) {
             Ok(ex) => LocalObject::from_ref(ex),
             Err(err) => LocalObject::from_ref(err),
         }

@@ -19,12 +19,14 @@ pub struct FieldID<const STATIC: bool> {
 macro_rules! impl_common_member_id {
     ($name:ident, $raw:ty) => {
         impl<const STATIC: bool> $name<STATIC> {
+            #[doc = concat!("Creates a new `", stringify!($name), "` from a raw pointer.\n\n# Safety\n * `raw` must be a valid raw pointer of ", stringify!($raw), ".")]
             pub unsafe fn from_raw(raw: $raw) -> Self {
                 Self {
                     ptr: NonNull::new(raw).expect("create id from null pointer"),
                 }
             }
 
+            #[doc = concat!("Returns the `", stringify!($raw), "` pointer of the ", stringify!($name), ".")]
             pub fn as_raw_ptr(&self) -> $raw {
                 self.ptr.as_ptr()
             }

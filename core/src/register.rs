@@ -13,6 +13,10 @@ impl<'vm> JNIEnv<'vm> {
     ///
     /// - `cls` must be a valid class.
     /// - `funcs` must be a valid slice of `NativeFunctions`.
+    ///
+    /// # Safety
+    ///
+    /// * `funcs` must be valid native function pointers.
     pub unsafe fn register_natives<const N_FUNCS: usize, R: StrongRef>(
         &self,
         cls: &R,
@@ -42,6 +46,10 @@ impl<'vm> JNIEnv<'vm> {
     ///
     /// - `cls` must be a valid class.
     /// - `funcs` must be a valid slice of `NativeFunctions`.
+    ///
+    /// # Safety
+    ///
+    /// * `funcs` must be valid native function pointers.
     #[cfg(feature = "alloc")]
     pub unsafe fn register_natives_variadic<R: StrongRef>(&self, cls: &R, funcs: &[NativeFunction]) -> Result<(), LocalRef<'_>> {
         #[cfg(debug_assertions)]
@@ -70,7 +78,7 @@ impl<'vm> JNIEnv<'vm> {
     /// Unregisters native methods for a class.
     ///
     /// - `cls` must be a valid class.
-    pub unsafe fn unregister_natives<R: StrongRef>(&self, cls: &R) -> Result<(), LocalRef<'_>> {
+    pub fn unregister_natives<R: StrongRef>(&self, cls: &R) -> Result<(), LocalRef<'_>> {
         #[cfg(debug_assertions)]
         cls.enforce_valid_runtime(self);
 

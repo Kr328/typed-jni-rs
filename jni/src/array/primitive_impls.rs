@@ -4,7 +4,7 @@ use crate::PrimitiveType;
 
 /// Function table of primitive arrays.
 pub trait PrimitiveArrayElement: PrimitiveType + Sized {
-    fn new<'env>(env: &'env JNIEnv<'_>, len: i32) -> Result<LocalRef<'env>, LocalRef<'env>>;
+    fn new_instance<'env>(env: &'env JNIEnv<'_>, len: i32) -> Result<LocalRef<'env>, LocalRef<'env>>;
 
     unsafe fn get_region<'env, R: StrongRef>(
         env: &'env JNIEnv<'_>,
@@ -31,7 +31,7 @@ pub trait PrimitiveArrayElement: PrimitiveType + Sized {
 macro_rules! impl_primitive_array_element {
     ($typ:ty, $new:ident, $get_region:ident, $set_region:ident, $get_elements:ident) => {
         impl PrimitiveArrayElement for $typ {
-            fn new<'env>(env: &'env JNIEnv<'_>, len: i32) -> Result<LocalRef<'env>, LocalRef<'env>> {
+            fn new_instance<'env>(env: &'env JNIEnv<'_>, len: i32) -> Result<LocalRef<'env>, LocalRef<'env>> {
                 env.$new(len)
             }
 

@@ -2,7 +2,22 @@ use typed_jni_core::{FieldID, JNIEnv};
 
 use crate::{LocalObject, ObjectType, TypedRef, builtin::JavaThrowable, core::StrongRef};
 
+/// This trait is implemented for all types that can be the return value of a field get operation.
+///
+/// Supported Types:
+///
+/// * Primitive types: `bool`, `i8`, `u16`, `i32`, `i64`, `f32`, `f64`
+/// * Object types: `LocalObject<Type>`, `Option<LocalObject<Type>>`
+///
+/// # Safety
+///
+/// This trait should not be implemented manually.
 pub unsafe trait Got<'env>: Sized {
+    /// Get the value of a field.
+    ///
+    /// # Safety
+    ///
+    /// * Signature of `Self` must match the signature of `field`.
     unsafe fn get_of<const STATIC: bool, R: StrongRef>(
         env: &'env JNIEnv,
         obj: &R,

@@ -11,7 +11,16 @@ use crate::{LocalObject, ObjectType, TypedRef, builtin::JavaThrowable};
 /// * No return: `()`
 /// * Primitive types: `bool`, `i8`, `u16`, `i32`, `i64`, `f32`, `f64`
 /// * Object types: `LocalObject<Type>`, `Option<LocalObject<Type>>`
+///
+/// # Safety
+///
+/// This trait should not be implemented manually.
 pub unsafe trait Target<'env>: Sized {
+    /// Call a method with a fixed number of arguments.
+    ///
+    /// # Safety
+    ///
+    /// * `args` must match the signature of the `method`.
     unsafe fn call<const STATIC: bool, const N_ARGS: usize, T: StrongRef>(
         env: &'env JNIEnv,
         this: &T,
@@ -19,6 +28,11 @@ pub unsafe trait Target<'env>: Sized {
         args: [Arg<'_>; N_ARGS],
     ) -> Result<Self, LocalObject<'env, JavaThrowable>>;
 
+    /// Call a method with a variable number of arguments.
+    ///
+    /// # Safety
+    ///
+    /// * `args` must match the signature of the `method`.
     unsafe fn call_variadic<'a, const STATIC: bool, T: StrongRef, Args: IntoIterator<Item = Arg<'a>>>(
         env: &'env JNIEnv,
         this: &T,
@@ -113,7 +127,7 @@ unsafe impl<'env, Type: ObjectType> Target<'env> for NewObject<'env, Type> {
         args: [Arg<'_>; N_ARGS],
     ) -> Result<Self, LocalObject<'env, JavaThrowable>> {
         unsafe {
-            env.new_object(&*this, core::mem::transmute(method), args)
+            env.new_object(this, core::mem::transmute::<MethodID<STATIC>, MethodID<false>>(method), args)
                 .map(|v| Self(LocalObject::from_ref(v)))
                 .map_err(|err| LocalObject::from_ref(err))
         }
@@ -126,7 +140,7 @@ unsafe impl<'env, Type: ObjectType> Target<'env> for NewObject<'env, Type> {
         args: Args,
     ) -> Result<Self, LocalObject<'env, JavaThrowable>> {
         unsafe {
-            env.new_object_variadic(&*this, core::mem::transmute(method), args)
+            env.new_object_variadic(this, core::mem::transmute::<MethodID<STATIC>, MethodID<false>>(method), args)
                 .map(|v| Self(LocalObject::from_ref(v)))
                 .map_err(|err| LocalObject::from_ref(err))
         }

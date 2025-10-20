@@ -27,8 +27,8 @@ struct MethodWithClass {
 }
 
 thread_local! {
-    static CACHED_STATIC_METHODS_WITH_CLASS: Slot<8, MethodWithClass> = new_slot();
-    static CACHED_INSTANCE_METHODS_WITH_CLASS: Slot<8, MethodWithClass> = new_slot();
+    static CACHED_STATIC_METHODS_WITH_CLASS: Slot<8, MethodWithClass> = const { new_slot() };
+    static CACHED_INSTANCE_METHODS_WITH_CLASS: Slot<8, MethodWithClass> = const { new_slot() };
 }
 
 pub fn find_class_and_method<'env, const STATIC: bool>(
@@ -81,7 +81,7 @@ pub fn put_class_and_method<const STATIC: bool, R: StrongRef>(
             class: cls.to_owned(),
             name: name.to_owned(),
             sig: sig.to_owned(),
-            class_obj: core::mem::transmute(env.new_weak_global_ref(cls_obj)?),
+            class_obj: core::mem::transmute::<WeakGlobalRef<'_>, WeakGlobalRef<'static>>(env.new_weak_global_ref(cls_obj)?),
             method: method.as_raw_ptr(),
         };
 
@@ -99,9 +99,9 @@ struct Member<T> {
     member: T,
 }
 
-fn find_member<'env, R: StrongRef, T: Copy>(
+fn find_member<R: StrongRef, T: Copy>(
     slot: &'static LocalKey<Slot<32, Member<T>>>,
-    env: &'env JNIEnv,
+    env: &JNIEnv,
     cls: &R,
     name: &CStr,
     sig: &CStr,
@@ -134,7 +134,7 @@ fn put_member<R: StrongRef, T>(
         let vm = env.vm();
         let entry = Member {
             vm: vm.as_raw_ptr(),
-            class: core::mem::transmute(env.new_weak_global_ref(cls)?),
+            class: core::mem::transmute::<WeakGlobalRef<'_>, WeakGlobalRef<'static>>(env.new_weak_global_ref(cls)?),
             name: name.to_owned(),
             sig: sig.to_owned(),
             member,
@@ -147,16 +147,11 @@ fn put_member<R: StrongRef, T>(
 }
 
 thread_local! {
-    static CACHED_STATIC_METHODS: Slot<32, Member<sys::jmethodID>> = new_slot();
-    static CACHED_INSTANCE_METHODS: Slot<32, Member<sys::jmethodID>> = new_slot();
+    static CACHED_STATIC_METHODS: Slot<32, Member<sys::jmethodID>> = const { new_slot() };
+    static CACHED_INSTANCE_METHODS: Slot<32, Member<sys::jmethodID>> = const { new_slot() };
 }
 
-pub fn find_method<'env, const STATIC: bool, R: StrongRef>(
-    env: &'env JNIEnv,
-    cls: &R,
-    name: &CStr,
-    sig: &CStr,
-) -> Option<MethodID<STATIC>> {
+pub fn find_method<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name: &CStr, sig: &CStr) -> Option<MethodID<STATIC>> {
     let method = if STATIC {
         find_member(&CACHED_STATIC_METHODS, env, cls, name, sig)?
     } else {
@@ -175,16 +170,11 @@ pub fn put_method<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name:
 }
 
 thread_local! {
-    static CACHED_STATIC_FIELDS: Slot<32, Member<sys::jfieldID>> = new_slot();
-    static CACHED_INSTANCE_FIELDS: Slot<32, Member<sys::jfieldID>> = new_slot();
+    static CACHED_STATIC_FIELDS: Slot<32, Member<sys::jfieldID>> = const { new_slot() };
+    static CACHED_INSTANCE_FIELDS: Slot<32, Member<sys::jfieldID>> = const { new_slot() };
 }
 
-pub fn find_field<'env, const STATIC: bool, R: StrongRef>(
-    env: &'env JNIEnv,
-    cls: &R,
-    name: &CStr,
-    sig: &CStr,
-) -> Option<FieldID<STATIC>> {
+pub fn find_field<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name: &CStr, sig: &CStr) -> Option<FieldID<STATIC>> {
     let field = if STATIC {
         find_member(&CACHED_STATIC_FIELDS, env, cls, name, sig)?
     } else {
