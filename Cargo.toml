@@ -1,7 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["example", "jni"]
+members = ["core", "example", "jni", "tests"]
 
 [workspace.package]
-version = "0.5.2"
+version = "1.0.0"
 edition = "2024"
+
+[workspace.dependencies]
+typed-jni-core = { path = "core", version = "1.0.0", default-features = false }
+typed-jni = { path = "jni", version = "1.0.0", default-features = false }

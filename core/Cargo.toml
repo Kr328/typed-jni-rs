@@ -1,0 +1,11 @@
+[package]
+name = "typed-jni-core"
+version.workspace = true
+edition.workspace = true
+
+[features]
+alloc = []
+print-throwable = []
+default = ["alloc"]
+
+[dependencies]

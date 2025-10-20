@@ -1,12 +1,10 @@
 [package]
-name = "example"
+name = "tests"
 version.workspace = true
 edition.workspace = true
 
-[lib]
-crate-type = ["lib", "cdylib"]
-
 [dependencies]
-typed-jni.workspace = true
+typed-jni = { workspace = true, features = ["print-throwable"] }
 
 jni = { version = "0.21", features = ["invocation"] }
+tempdir = "0.3"
