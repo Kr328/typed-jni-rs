@@ -119,17 +119,6 @@ impl<'env> Ref for LocalRef<'env> {
 
 impl<'env> StrongRef for LocalRef<'env> {}
 
-impl<'env> Clone for LocalRef<'env> {
-    fn clone(&self) -> Self {
-        let new_ptr = unsafe { call!(self.env.as_raw_ptr(), NewLocalRef, self.ptr.as_ptr()) };
-
-        Self {
-            env: self.env,
-            ptr: NonNull::new(new_ptr).expect("BROKEN: cannot create new local reference, maybe out of memory?"),
-        }
-    }
-}
-
 impl<'env> Drop for LocalRef<'env> {
     fn drop(&mut self) {
         unsafe {
@@ -186,21 +175,6 @@ impl<'vm> Ref for GlobalRef<'vm> {
 }
 
 impl<'vm> StrongRef for GlobalRef<'vm> {}
-
-impl<'vm> Clone for GlobalRef<'vm> {
-    fn clone(&self) -> Self {
-        self.vm
-            .with_attached_thread(true, |env| {
-                let new_ptr = unsafe { call!(env.as_raw_ptr(), NewGlobalRef, self.ptr.as_ptr()) };
-
-                Self {
-                    vm: self.vm,
-                    ptr: NonNull::new(new_ptr).expect("BROKEN: cannot create new global reference, maybe out of memory?"),
-                }
-            })
-            .expect("BROKEN: attach thread to javavm failed")
-    }
-}
 
 impl<'vm> Drop for GlobalRef<'vm> {
     fn drop(&mut self) {
