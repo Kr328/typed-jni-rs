@@ -5,7 +5,7 @@ use typed_jni::{
 
 use crate::{compile_file_and_load_classes, with_java_vm};
 
-// 修改test_get_set_static_field函数，增加所有字段的写入测试
+// Modify the test_get_set_static_field function to add write tests for all fields
 #[test]
 fn test_get_set_static_field() {
     with_java_vm(|env| {
@@ -29,7 +29,7 @@ fn test_get_set_static_field() {
 
         let c_test: LocalClass<JavaTest> = env.typed_find_class_in_class_loader(&loader).unwrap();
 
-        // 测试获取静态字段
+        // Test getting static fields
         let boolean_val: bool = env.typed_get_field(&c_test, "staticBoolean").unwrap();
         assert_eq!(boolean_val, true);
 
@@ -57,7 +57,7 @@ fn test_get_set_static_field() {
         let string_val: LocalObject<JavaString> = env.typed_get_field(&c_test, "staticString").unwrap();
         assert_eq!(env.typed_get_string(&string_val), "Hello, World");
 
-        // 测试设置静态字段 - 为所有类型添加写入测试
+        // Test setting static fields - add write tests for all types
         env.typed_set_field(&c_test, "staticBoolean", false).unwrap();
         let new_boolean_val: bool = env.typed_get_field(&c_test, "staticBoolean").unwrap();
         assert_eq!(new_boolean_val, false);
@@ -123,7 +123,7 @@ fn test_get_set_instance_field() {
         let c_test: LocalClass<JavaTest> = env.typed_find_class_in_class_loader(&loader).unwrap();
         let o_test: LocalObject<JavaTest> = env.typed_new_object(&c_test, ()).unwrap();
 
-        // 测试获取实例字段
+        // Test getting instance fields
         let boolean_val: bool = env.typed_get_field(&o_test, "instanceBoolean").unwrap();
         assert_eq!(boolean_val, true);
 
@@ -151,7 +151,7 @@ fn test_get_set_instance_field() {
         let string_val: LocalObject<JavaString> = env.typed_get_field(&o_test, "instanceString").unwrap();
         assert_eq!(env.typed_get_string(&string_val), "Hello, World");
 
-        // 测试设置实例字段 - 为所有类型添加写入测试
+        // Test setting instance fields - add write tests for all types
         env.typed_set_field(&o_test, "instanceBoolean", false).unwrap();
         let new_boolean_val: bool = env.typed_get_field(&o_test, "instanceBoolean").unwrap();
         assert_eq!(new_boolean_val, false);
@@ -250,22 +250,22 @@ fn test_nullable_field_handling() {
         let c_test: LocalClass<JavaTest> = env.typed_find_class_in_class_loader(&loader).unwrap();
         let o_test: LocalObject<JavaTest> = env.typed_new_object(&c_test, ()).unwrap();
 
-        // 测试获取null字段
+        // Test: Get nullable field
         let nullable_result: Option<LocalObject<JavaString>> = env.typed_get_field(&o_test, "nullableString").unwrap();
         assert!(nullable_result.is_none());
 
-        // 测试获取非null字段
+        // Test: Get non-null field
         let non_null_result: Option<LocalObject<JavaString>> = env.typed_get_field(&o_test, "nonNullableString").unwrap();
         assert!(non_null_result.is_some());
         assert_eq!(env.typed_get_string(&non_null_result.unwrap()), "NonNull");
 
-        // 测试设置null字段
+        // Test: Set nullable field to null
         env.typed_set_field(&o_test, "nullableString", typed_jni::Null::<JavaString>::NULL)
             .unwrap();
         let still_null_result: Option<LocalObject<JavaString>> = env.typed_get_field(&o_test, "nullableString").unwrap();
         assert!(still_null_result.is_none());
 
-        // 测试设置非null值到原本为null的字段
+        // Test: Set non-null value to nullable field
         let new_string = env.typed_new_string("NowNotNull");
         env.typed_set_field(&o_test, "nullableString", &new_string).unwrap();
         let now_not_null_result: Option<LocalObject<JavaString>> = env.typed_get_field(&o_test, "nullableString").unwrap();

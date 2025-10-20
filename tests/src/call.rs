@@ -57,45 +57,45 @@ fn test_basic_call_static_method() {
 
         let c_test: LocalClass<JavaTest> = env.typed_find_class_in_class_loader(&loader).unwrap();
 
-        // 测试 void 类型
+        // Test void type
         let _: () = env.typed_call_method(&c_test, "callVoid", ()).unwrap();
 
-        // 测试 boolean 类型
+        // Test boolean type
         let boolean_ret: bool = env.typed_call_method(&c_test, "callBoolean", (true,)).unwrap();
         assert!(boolean_ret);
 
         let boolean_ret: bool = env.typed_call_method(&c_test, "callBoolean", (false,)).unwrap();
         assert!(!boolean_ret);
 
-        // 测试 byte 类型
+        // Test byte type
         let byte_ret: i8 = env.typed_call_method(&c_test, "callByte", (127i8,)).unwrap();
         assert_eq!(byte_ret, 127);
 
         let byte_ret: i8 = env.typed_call_method(&c_test, "callByte", (-128i8,)).unwrap();
         assert_eq!(byte_ret, -128);
 
-        // 测试 char 类型
+        // Test char type
         let char_ret: u16 = env.typed_call_method(&c_test, "callChar", ('A' as u16,)).unwrap();
         assert_eq!(char_ret, 'A' as u16);
 
         let char_ret: u16 = env.typed_call_method(&c_test, "callChar", (0x0041u16,)).unwrap();
         assert_eq!(char_ret, 0x0041);
 
-        // 测试 short 类型
+        // Test short type
         let short_ret: i16 = env.typed_call_method(&c_test, "callShort", (32767i16,)).unwrap();
         assert_eq!(short_ret, 32767);
 
         let short_ret: i16 = env.typed_call_method(&c_test, "callShort", (-32768i16,)).unwrap();
         assert_eq!(short_ret, -32768);
 
-        // 测试 int 类型
+        // Test int type
         let int_ret: i32 = env.typed_call_method(&c_test, "callInt", (2147483647i32,)).unwrap();
         assert_eq!(int_ret, 2147483647);
 
         let int_ret: i32 = env.typed_call_method(&c_test, "callInt", (-2147483648i32,)).unwrap();
         assert_eq!(int_ret, -2147483648);
 
-        // 测试 long 类型
+        // Test long type
         let long_ret: i64 = env.typed_call_method(&c_test, "callLong", (9223372036854775807i64,)).unwrap();
         assert_eq!(long_ret, 9223372036854775807);
 
@@ -104,15 +104,15 @@ fn test_basic_call_static_method() {
             .unwrap();
         assert_eq!(long_ret, -9223372036854775808i64);
 
-        // 测试 float 类型
+        // Test float type
         let float_ret: f32 = env.typed_call_method(&c_test, "callFloat", (std::f32::consts::PI,)).unwrap();
         assert!((float_ret - std::f32::consts::PI).abs() < 0.0001);
 
-        // 测试 double 类型
+        // Test double type
         let double_ret: f64 = env.typed_call_method(&c_test, "callDouble", (std::f64::consts::E,)).unwrap();
         assert!((double_ret - std::f64::consts::E).abs() < 0.00001);
 
-        // 测试 String 类型
+        // Test String type
         let string_ret: LocalObject<JavaString> = env
             .typed_call_method(&c_test, "callString", (env.typed_new_string("Hello World"),))
             .unwrap();
@@ -173,60 +173,60 @@ fn test_basic_call_method() {
         let c_test: LocalClass<JavaTest> = env.typed_find_class_in_class_loader(&loader).unwrap();
         let o_test: LocalObject<JavaTest> = env.typed_new_object(&c_test, ()).unwrap();
 
-        // 测试 void 类型
+        // Test void type
         let _: () = env.typed_call_method(&o_test, "call", ()).unwrap();
 
-        // 测试 boolean 类型
+        // Test boolean type
         let boolean_ret: bool = env.typed_call_method(&o_test, "call", (true,)).unwrap();
         assert!(boolean_ret);
 
         let boolean_ret: bool = env.typed_call_method(&o_test, "call", (false,)).unwrap();
         assert!(!boolean_ret);
 
-        // 测试 byte 类型
+        // Test byte type
         let byte_ret: i8 = env.typed_call_method(&o_test, "call", (127i8,)).unwrap();
         assert_eq!(byte_ret, 127);
 
         let byte_ret: i8 = env.typed_call_method(&o_test, "call", (-128i8,)).unwrap();
         assert_eq!(byte_ret, -128);
 
-        // 测试 char 类型
+        // Test char type
         let char_ret: u16 = env.typed_call_method(&o_test, "call", ('A' as u16,)).unwrap();
         assert_eq!(char_ret, 'A' as u16);
 
         let char_ret: u16 = env.typed_call_method(&o_test, "call", (0x0041u16,)).unwrap();
         assert_eq!(char_ret, 0x0041);
 
-        // 测试 short 类型
+        // Test short type
         let short_ret: i16 = env.typed_call_method(&o_test, "call", (32767i16,)).unwrap();
         assert_eq!(short_ret, 32767);
 
         let short_ret: i16 = env.typed_call_method(&o_test, "call", (-32768i16,)).unwrap();
         assert_eq!(short_ret, -32768);
 
-        // 测试 int 类型
+        // Test int type
         let int_ret: i32 = env.typed_call_method(&o_test, "call", (2147483647i32,)).unwrap();
         assert_eq!(int_ret, 2147483647);
 
         let int_ret: i32 = env.typed_call_method(&o_test, "call", (-2147483648i32,)).unwrap();
         assert_eq!(int_ret, -2147483648);
 
-        // 测试 long 类型
+        // Test long type
         let long_ret: i64 = env.typed_call_method(&o_test, "call", (9223372036854775807i64,)).unwrap();
         assert_eq!(long_ret, 9223372036854775807);
 
         let long_ret: i64 = env.typed_call_method(&o_test, "call", (-9223372036854775808i64,)).unwrap();
         assert_eq!(long_ret, -9223372036854775808i64);
 
-        // 测试 float 类型
+        // Test float type
         let float_ret: f32 = env.typed_call_method(&o_test, "call", (std::f32::consts::PI,)).unwrap();
         assert!((float_ret - std::f32::consts::PI).abs() < 0.0001);
 
-        // 测试 double 类型
+        // Test double type
         let double_ret: f64 = env.typed_call_method(&o_test, "call", (std::f64::consts::E,)).unwrap();
         assert!((double_ret - std::f64::consts::E).abs() < 0.00001);
 
-        // 测试 String 类型
+        // Test String type
         let string_ret: LocalObject<JavaString> = env
             .typed_call_method(&o_test, "call", (env.typed_new_string("Hello World"),))
             .unwrap();
@@ -243,7 +243,7 @@ fn test_call_overloaded_instance_method() {
             env,
             "Test",
             r#"public class Test {
-                // 重载的实例方法：相同名称，不同参数类型
+                // Overloaded instance method: same name, different parameter types
                 public int add(int a, int b) {
                     return a + b;
                 }
@@ -256,12 +256,12 @@ fn test_call_overloaded_instance_method() {
                     return a + b;
                 }
 
-                // 重载的实例方法：相同名称，不同参数数量
+                // Overloaded instance method: same name, different parameter counts
                 public int add(int a) {
                     return a + 10;
                 }
 
-                // 无参构造函数
+                // No-arg constructor
                 public Test() {
                 }
             }"#,
@@ -269,24 +269,24 @@ fn test_call_overloaded_instance_method() {
 
         let c_test: LocalClass<JavaTest> = env.typed_find_class_in_class_loader(&loader).unwrap();
 
-        // 创建Test类的实例
+        // Create an instance of the Test class
         let instance: LocalObject<JavaTest> = env.typed_new_object(&c_test, ()).unwrap();
 
-        // 测试重载方法1：两个int参数
+        // Test overloaded method 1: two int parameters
         let int_result: i32 = env.typed_call_method(&instance, "add", (10i32, 20i32)).unwrap();
         assert_eq!(int_result, 30);
 
-        // 测试重载方法2：两个double参数
+        // Test overloaded method 2: two double parameters
         let double_result: f64 = env.typed_call_method(&instance, "add", (10.5f64, 20.5f64)).unwrap();
         assert!((double_result - 31.0f64).abs() < 0.0001);
 
-        // 测试重载方法3：两个String参数
+        // Test overloaded method 3: two String parameters
         let s1 = env.typed_new_string("Hello ");
         let s2 = env.typed_new_string("World");
         let string_result: LocalObject<JavaString> = env.typed_call_method(&instance, "add", (&s1, &s2)).unwrap();
         assert_eq!(env.typed_get_string(&string_result), "Hello World");
 
-        // 测试重载方法4：一个int参数
+        // Test overloaded method 4: one int parameter
         let single_int_result: i32 = env.typed_call_method(&instance, "add", (5i32,)).unwrap();
         assert_eq!(single_int_result, 15);
     })
@@ -301,17 +301,17 @@ fn test_nullable_object_handling() {
             env,
             "Test",
             r#"public class Test {
-                // 测试接收可空对象参数并返回对象
+                // Test receiving nullable object parameters and returning objects
                 public String processNullableString(String input) {
-                    // 如果输入为null，返回"NULL_VALUE"
+                    // If input is null, return "NULL_VALUE"
                     if (input == null) {
                         return "NULL_VALUE";
                     }
-                    // 否则返回输入字符串的大写形式
+                    // Otherwise return the uppercase form of the input string
                     return input.toUpperCase();
                 }
 
-                // 测试返回null的方法
+                // Test method that returns null
                 public String returnNullString(boolean shouldReturnNull) {
                     if (shouldReturnNull) {
                         return null;
@@ -319,7 +319,7 @@ fn test_nullable_object_handling() {
                     return "NOT_NULL";
                 }
 
-                // 测试传递null给接受两个参数的方法
+                // Test passing null to a method that accepts two parameters
                 public String concatStrings(String a, String b) {
                     if (a == null && b == null) {
                         return "BOTH_NULL";
@@ -331,7 +331,7 @@ fn test_nullable_object_handling() {
                     return a + b;
                 }
 
-                // 无参构造函数
+                // No-arg constructor
                 public Test() {
                 }
             }"#,
@@ -340,47 +340,47 @@ fn test_nullable_object_handling() {
         let c_test: LocalClass<JavaTest> = env.typed_find_class_in_class_loader(&loader).unwrap();
         let instance: LocalObject<JavaTest> = env.typed_new_object(&c_test, ()).unwrap();
 
-        // 测试1：传递非null参数，接收非null返回值
+        // Test 1: Pass non-null parameter, receive non-null return value
         let non_null_str = env.typed_new_string("hello");
         let result1: LocalObject<JavaString> = env
             .typed_call_method(&instance, "processNullableString", (&non_null_str,))
             .unwrap();
         assert_eq!(env.typed_get_string(&result1), "HELLO");
 
-        // 测试2：传递null参数，接收非null返回值
+        // Test 2: Pass null parameter, receive non-null return value
         let result2: LocalObject<JavaString> = env
             .typed_call_method(&instance, "processNullableString", (Null::<JavaString>::NULL,))
             .unwrap();
         assert_eq!(env.typed_get_string(&result2), "NULL_VALUE");
 
-        // 测试3：接收null返回值
+        // Test 3: Receive null return value
         let result3: Option<LocalObject<JavaString>> = env.typed_call_method(&instance, "returnNullString", (true,)).unwrap();
         assert!(result3.is_none());
 
-        // 测试4：接收非null返回值
+        // Test 4: Receive non-null return value
         let result4: Option<LocalObject<JavaString>> = env.typed_call_method(&instance, "returnNullString", (false,)).unwrap();
         assert!(result4.is_some());
         assert_eq!(env.typed_get_string(&result4.unwrap()), "NOT_NULL");
 
-        // 测试5：传递两个非null参数
+        // Test 5: Pass two non-null parameters
         let str_a = env.typed_new_string("prefix_");
         let str_b = env.typed_new_string("suffix");
         let result5: LocalObject<JavaString> = env.typed_call_method(&instance, "concatStrings", (&str_a, &str_b)).unwrap();
         assert_eq!(env.typed_get_string(&result5), "prefix_suffix");
 
-        // 测试6：传递第一个参数为null，第二个为非null
+        // Test 6: Pass first parameter as null, second as non-null
         let result6: LocalObject<JavaString> = env
             .typed_call_method(&instance, "concatStrings", (Null::<JavaString>::NULL, &str_b))
             .unwrap();
         assert_eq!(env.typed_get_string(&result6), "A_NULL:suffix");
 
-        // 测试7：传递第一个参数为非null，第二个为null
+        // Test 7: Pass first parameter as non-null, second as null
         let result7: LocalObject<JavaString> = env
             .typed_call_method(&instance, "concatStrings", (&str_a, Null::<JavaString>::NULL))
             .unwrap();
         assert_eq!(env.typed_get_string(&result7), "prefix_:B_NULL");
 
-        // 测试8：传递两个null参数
+        // Test 8: Pass two null parameters
         let result8: LocalObject<JavaString> = env
             .typed_call_method(
                 &instance,
@@ -431,34 +431,34 @@ fn test_exception_handling() {
             env,
             "Test",
             r#"public class Test {
-                // 测试静态方法抛出异常
+                // Test static method throwing exception
                 public static void throwNullPointerException() {
                     String str = null;
-                    str.length(); // 会抛出NullPointerException
+                    str.length(); // Will throw NullPointerException
                 }
                 
-                // 测试静态方法抛出带消息的异常
+                // Test static method throwing exception with message
                 public static int throwIllegalArgumentException(String message) {
                     throw new IllegalArgumentException(message);
                 }
                 
-                // 测试实例方法抛出异常
+                // Test instance method throwing exception
                 public void throwRuntimeException() {
-                    throw new RuntimeException("测试运行时异常");
+                    throw new RuntimeException("Testing runtime exception");
                 }
                 
-                // 测试实例方法抛出特定类型的异常
+                // Test instance method throwing specific type of exception
                 public String throwExceptionWithType(String exceptionType) {
                     if ("ArithmeticException".equals(exceptionType)) {
-                        int result = 1 / 0; // 会抛出ArithmeticException
+                        int result = 1 / 0; // Will throw ArithmeticException
                     } else if ("ArrayIndexOutOfBoundsException".equals(exceptionType)) {
                         int[] arr = new int[5];
-                        return String.valueOf(arr[10]); // 会抛出ArrayIndexOutOfBoundsException
+                        return String.valueOf(arr[10]); // Will throw ArrayIndexOutOfBoundsException
                     }
-                    return "正常返回值";
+                    return "Normal return value";
                 }
                 
-                // 无参构造函数
+                // No-arg constructor
                 public Test() {
                 }
             }"#,
@@ -467,15 +467,15 @@ fn test_exception_handling() {
         let c_test: LocalClass<JavaTest> = env.typed_find_class_in_class_loader(&loader).unwrap();
         let instance: LocalObject<JavaTest> = env.typed_new_object(&c_test, ()).unwrap();
 
-        // 测试1：调用会抛出NullPointerException的静态方法
+        // Test 1: Call static method that throws NullPointerException
         let result1 = env.typed_call_method::<(), _, _>(&c_test, "throwNullPointerException", ());
         assert!(result1.is_err());
         let exception1 = result1.unwrap_err();
         let exception_class_name = env.typed_to_string(&env.typed_get_object_class(&exception1)).unwrap();
         assert!(exception_class_name.contains("NullPointerException"));
 
-        // 测试2：调用会抛出带消息的IllegalArgumentException的静态方法
-        let error_message = "测试参数异常";
+        // Test 2: Call static method that throws IllegalArgumentException with message
+        let error_message = "Testing parameter exception";
         let result2 = env.typed_call_method::<i32, _, _>(
             &c_test,
             "throwIllegalArgumentException",
@@ -486,14 +486,14 @@ fn test_exception_handling() {
         let exception_class_name = env.typed_to_string(&env.typed_get_object_class(&exception2)).unwrap();
         assert!(exception_class_name.contains("IllegalArgumentException"));
 
-        // 测试3：调用会抛出RuntimeException的实例方法
+        // Test 3: Call instance method that throws RuntimeException
         let result3 = env.typed_call_method::<(), _, _>(&instance, "throwRuntimeException", ());
         assert!(result3.is_err());
         let exception3 = result3.unwrap_err();
         let exception_class_name = env.typed_to_string(&env.typed_get_object_class(&exception3)).unwrap();
         assert!(exception_class_name.contains("RuntimeException"));
 
-        // 测试4：调用会抛出不同类型异常的实例方法
+        // Test 4: Call instance method that throws different types of exceptions
         let result4 = env.typed_call_method::<LocalObject<JavaString>, _, _>(
             &instance,
             "throwExceptionWithType",
@@ -504,6 +504,7 @@ fn test_exception_handling() {
         let exception_class_name = env.typed_to_string(&env.typed_get_object_class(&exception4)).unwrap();
         assert!(exception_class_name.contains("ArithmeticException"));
 
+        // Test 5: Call instance method that throws ArrayIndexOutOfBoundsException
         let result5 = env.typed_call_method::<LocalObject<JavaString>, _, _>(
             &instance,
             "throwExceptionWithType",
@@ -514,10 +515,14 @@ fn test_exception_handling() {
         let exception_class_name = env.typed_to_string(&env.typed_get_object_class(&exception5)).unwrap();
         assert!(exception_class_name.contains("ArrayIndexOutOfBoundsException"));
 
-        // 测试6：正常情况不会抛出异常
-        let result6 = env.typed_call_method(&instance, "throwExceptionWithType", (env.typed_new_string("UnknownType"),));
+        // Test 6: Call instance method with unknown exception type
+        let result6 = env.typed_call_method::<LocalObject<JavaString>, _, _>(
+            &instance,
+            "throwExceptionWithType",
+            (env.typed_new_string("UnknownType"),),
+        );
         assert!(result6.is_ok());
-        assert_eq!(env.typed_get_string(&result6.unwrap()), "正常返回值");
+        assert_eq!(env.typed_get_string(&result6.unwrap()), "Normal return value");
     })
 }
 
@@ -534,45 +539,45 @@ fn test_object_creation() {
                 private String stringValue;
                 private boolean booleanValue;
                 
-                // 无参构造函数
+                // No-arg constructor
                 public Test() {
                     this.intValue = 0;
                     this.stringValue = "Default";
                     this.booleanValue = false;
                 }
                 
-                // 带一个int参数的构造函数
+                // Constructor with one int parameter
                 public Test(int value) {
                     this.intValue = value;
                     this.stringValue = "IntegerConstructor";
                     this.booleanValue = true;
                 }
                 
-                // 带String参数的构造函数
+                // Constructor with String parameter
                 public Test(String value) {
                     this.intValue = -1;
                     this.stringValue = value;
                     this.booleanValue = false;
                 }
                 
-                // 带多个不同类型参数的构造函数
+                // Constructor with multiple parameters of different types
                 public Test(int intVal, String strVal, boolean boolVal) {
                     this.intValue = intVal;
                     this.stringValue = strVal;
                     this.booleanValue = boolVal;
                 }
                 
-                // 会抛出异常的构造函数
+                // Constructor that throws exception
                 public Test(boolean shouldThrow) {
                     if (shouldThrow) {
-                        throw new IllegalArgumentException("测试构造函数异常");
+                        throw new IllegalArgumentException("Testing constructor exception");
                     }
                     this.intValue = 42;
                     this.stringValue = "SafeConstructor";
                     this.booleanValue = false;
                 }
                 
-                // 获取属性的方法
+                // Methods to get properties
                 public int getIntValue() {
                     return intValue;
                 }
@@ -589,7 +594,7 @@ fn test_object_creation() {
 
         let c_test: LocalClass<JavaTest> = env.typed_find_class_in_class_loader(&loader).unwrap();
 
-        // 测试1: 无参构造函数创建对象
+        // Test 1: Create object with no-arg constructor
         let instance1: LocalObject<JavaTest> = env.typed_new_object(&c_test, ()).unwrap();
         assert_eq!(env.typed_call_method::<i32, _, _>(&instance1, "getIntValue", ()).unwrap(), 0);
         assert_eq!(
@@ -601,7 +606,7 @@ fn test_object_creation() {
             false
         );
 
-        // 测试2: 带int参数的构造函数创建对象
+        // Test 2: Call constructor with int parameter to create object
         let instance2: LocalObject<JavaTest> = env.typed_new_object(&c_test, (42i32,)).unwrap();
         assert_eq!(env.typed_call_method::<i32, _, _>(&instance2, "getIntValue", ()).unwrap(), 42);
         assert_eq!(
@@ -613,7 +618,7 @@ fn test_object_creation() {
             true
         );
 
-        // 测试3: 带String参数的构造函数创建对象
+        // Test 3: Call constructor with String parameter to create object
         let test_str = env.typed_new_string("CustomString");
         let instance3: LocalObject<JavaTest> = env.typed_new_object(&c_test, (&test_str,)).unwrap();
         assert_eq!(env.typed_call_method::<i32, _, _>(&instance3, "getIntValue", ()).unwrap(), -1);
@@ -626,7 +631,7 @@ fn test_object_creation() {
             false
         );
 
-        // 测试4: 带多个不同类型参数的构造函数创建对象
+        // Test 4: Call constructor with multiple parameters of different types to create object
         let multi_param_str = env.typed_new_string("MultiParam");
         let instance4: LocalObject<JavaTest> = env.typed_new_object(&c_test, (100i32, &multi_param_str, true)).unwrap();
         assert_eq!(
@@ -642,7 +647,7 @@ fn test_object_creation() {
             true
         );
 
-        // 测试5: 正常的boolean参数构造函数
+        // Test 5: Call constructor with boolean parameter to create object
         let instance5: LocalObject<JavaTest> = env.typed_new_object(&c_test, (false,)).unwrap();
         assert_eq!(env.typed_call_method::<i32, _, _>(&instance5, "getIntValue", ()).unwrap(), 42);
         assert_eq!(
@@ -654,7 +659,7 @@ fn test_object_creation() {
             false
         );
 
-        // 测试6: 构造函数抛出异常
+        // Test 6: Call constructor with boolean parameter that throws exception
         let result6 = env.typed_new_object::<JavaTest, _, _>(&c_test, (true,));
         assert!(result6.is_err());
         let exception6 = result6.err().unwrap();

@@ -30,34 +30,34 @@ fn test_find_array_class() {
 #[test]
 fn test_get_class_loader() {
     with_java_vm(|env| {
-        // 查找一个内置类，例如 String 类
+        // Find a built-in class, such as String class
         let string_class: LocalClass<JavaString> = env.typed_find_class().unwrap();
 
-        // 获取 String 类的类加载器（应该是 null，因为它是引导类加载器加载的）
+        // Get the class loader of String class (should be null as it's loaded by bootstrap class loader)
         let class_loader = env
             .typed_get_class_loader(&env.typed_new_local_ref(&string_class).into_class_object())
             .unwrap();
 
-        // 验证获取到的类加载器为 None（表示 null）
+        // Verify that the obtained class loader is None (indicating null)
         assert!(
             class_loader.is_none(),
             "String class should be loaded by bootstrap class loader"
         );
 
-        // 测试一个自定义类的类加载器
-        // 编译一个简单的测试类并使用自定义类加载器加载
+        // Test the class loader of a custom class
+        // Compile a simple test class and load it using a custom class loader
         let (_temp, custom_loader) = compile_file_and_load_classes(env, "TestClass", r#"public class TestClass {}"#);
 
-        // 定义测试类类型
+        // Define test class type
         define_java_class!(JavaTestClass, "TestClass");
 
-        // 使用自定义类加载器查找测试类
+        // Find test class using custom class loader
         let test_class: LocalClass<JavaTestClass> = env.typed_find_class_in_class_loader(&custom_loader).unwrap();
 
-        // 获取测试类的类加载器
+        // Get the class loader of the test class
         let test_class_loader = env.typed_get_class_loader(&test_class.into_class_object()).unwrap();
 
-        // 验证获取到的类加载器
+        // Verify the obtained class loader
         assert!(test_class_loader.is_some(), "TestClass should have a class loader");
         assert!(env.is_same_object(test_class_loader.as_deref(), Some(&*custom_loader)))
     })
