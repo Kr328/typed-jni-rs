@@ -1,3 +1,5 @@
+pub(crate) mod helper;
+
 use typed_jni_core::{JNIEnv, StrongRef};
 
 use crate::{LocalObject, Object, TypedRef, builtin::JavaThrowable};

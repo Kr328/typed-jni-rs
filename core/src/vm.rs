@@ -79,9 +79,9 @@ impl JavaVM {
     }
 
     /// Run the given function with the current thread's JNIEnv.
-    pub fn with_current_env<F, R>(&self, f: F) -> Option<R>
+    pub fn with_current_env<'vm, F, R>(&'vm self, f: F) -> Option<R>
     where
-        F: for<'env> FnOnce(&'env JNIEnv) -> R,
+        F: for<'env> FnOnce(&'env JNIEnv<'vm>) -> R,
     {
         self.current_env().map(f)
     }
@@ -129,11 +129,9 @@ impl JavaVM {
     /// Detach the current thread from the Java VM.
     pub unsafe fn detach_current_thread(&self) -> Result<(), AttachError> {
         unsafe {
-            let ret = call!(self.as_raw_ptr(), DetachCurrentThread);
+            self.run_hook(&ON_DETACH);
 
-            if ret == sys::JNI_OK {
-                self.run_hook(&ON_DETACH);
-
+            if call!(self.as_raw_ptr(), DetachCurrentThread) == sys::JNI_OK {
                 Ok(())
             } else {
                 Err(AttachError)
@@ -142,9 +140,9 @@ impl JavaVM {
     }
 
     /// Run the given function with the current thread attached to the Java VM.
-    pub fn with_attached_thread<F, R>(&self, as_daemon: bool, f: F) -> Result<R, AttachError>
+    pub fn with_attached_thread<'vm, F, R>(&'vm self, as_daemon: bool, f: F) -> Result<R, AttachError>
     where
-        F: for<'env> FnOnce(&'env JNIEnv) -> R,
+        F: for<'env> FnOnce(&'env JNIEnv<'vm>) -> R,
     {
         match self.current_env() {
             Some(env) => {

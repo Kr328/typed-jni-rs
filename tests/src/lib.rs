@@ -10,18 +10,21 @@ mod string;
 
 use std::{process::Stdio, sync::OnceLock};
 
-use jni::JavaVM;
 use typed_jni::{
     Array, LocalClass, LocalObject, TypedCallExt, TypedClassExt, TypedObjectArrayExt, TypedObjectExt, TypedStringExt,
-    builtin::JavaClassLoader, core::JNIEnv, define_java_class,
+    builtin::JavaClassLoader,
+    core::{JNIEnv, JavaVM},
+    define_java_class,
 };
 
-fn with_java_vm<R, F: FnOnce(&JNIEnv<'static>) -> R>(f: F) -> R {
-    static VM: OnceLock<JavaVM> = OnceLock::new();
-    let vm = VM.get_or_init(|| JavaVM::new(jni::InitArgsBuilder::new().build().unwrap()).unwrap());
-    let env = vm.attach_current_thread().unwrap();
+fn with_java_vm<R, F: for<'env> FnOnce(&'env JNIEnv<'static>) -> R>(f: F) -> R {
+    static VM: OnceLock<jni::JavaVM> = OnceLock::new();
 
-    f(unsafe { JNIEnv::from_raw(env.get_raw() as _) })
+    let vm = VM.get_or_init(|| jni::JavaVM::new(jni::InitArgsBuilder::new().build().unwrap()).unwrap());
+
+    let vm: &'static JavaVM = unsafe { JavaVM::from_raw(vm.get_java_vm_pointer() as _) };
+
+    vm.with_attached_thread(false, |env| f(env)).unwrap()
 }
 
 #[test]

@@ -4,7 +4,7 @@ mod set;
 use typed_jni_core::{JNIEnv, StrongRef};
 
 pub use self::{get::Got, set::Value};
-use crate::{LocalObject, Type, TypedRef, builtin::JavaThrowable, resolver};
+use crate::{LocalObject, Type, TypedRef, builtin::JavaThrowable, resolver, resolver::helper::MemberKind};
 
 /// Extension methods for typed field access.
 pub trait TypedFieldAccessExt {
@@ -31,14 +31,17 @@ impl<'vm> TypedFieldAccessExt for JNIEnv<'vm> {
         T::Target: StrongRef + Sized,
     {
         unsafe {
-            let s = R::SIGNATURE;
+            let name = resolver::helper::build_member_name(self, name, MemberKind::Field)?;
+            let signature = resolver::helper::build_field_signature(self, R::SIGNATURE)?;
 
             if T::STATIC {
-                let field = resolver::helper::resolve_field_by_this::<true, _>(self, &**this, name, s)?;
+                let field = resolver::resolve_field::<true, _>(self, &**this, &*name, &signature)?;
 
                 R::get_of(self, &**this, field)
             } else {
-                let field = resolver::helper::resolve_field_by_this::<false, _>(self, &**this, name, s)?;
+                let cls = self.get_object_class(&**this);
+
+                let field = resolver::resolve_field::<false, _>(self, &cls, &*name, &signature)?;
 
                 R::get_of(self, &**this, field)
             }
@@ -52,14 +55,17 @@ impl<'vm> TypedFieldAccessExt for JNIEnv<'vm> {
         T::Target: StrongRef + Sized,
     {
         unsafe {
-            let s = V::SIGNATURE;
+            let name = resolver::helper::build_member_name(self, name, MemberKind::Field)?;
+            let signature = resolver::helper::build_field_signature(self, V::SIGNATURE)?;
 
             if T::STATIC {
-                let field = resolver::helper::resolve_field_by_this::<true, _>(self, &**this, name, s)?;
+                let field = resolver::resolve_field::<true, _>(self, &**this, &*name, &signature)?;
 
                 value.set_on(self, &**this, field)
             } else {
-                let field = resolver::helper::resolve_field_by_this::<false, _>(self, &**this, name, s)?;
+                let cls = self.get_object_class(&**this);
+
+                let field = resolver::resolve_field::<false, _>(self, &cls, &*name, &signature)?;
 
                 value.set_on(self, &**this, field)
             }

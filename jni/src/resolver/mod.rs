@@ -1,99 +1,79 @@
-pub mod helper;
+#[cfg(feature = "cache")]
+mod cache;
+pub(crate) mod helper;
 
-use alloc::{
-    ffi::CString,
-    string::{String, ToString},
-    vec::Vec,
-};
-use core::{ffi::CStr, fmt::Write};
+use core::ffi::CStr;
 
-use typed_jni_core::{Arg, FieldID, JNIEnv, LocalRef, MethodID, StrongRef};
+use typed_jni_core::{FieldID, JNIEnv, LocalRef, MethodID, StrongRef};
 
-use crate::{LocalObject, Signature, TypedRef, builtin::JavaThrowable};
+use crate::{LocalObject, TypedRef, builtin::JavaThrowable};
 
-pub fn resolve_class_and_method_raw<'env, const STATIC: bool>(
+pub fn resolve_class_and_method<'env, const STATIC: bool>(
     env: &'env JNIEnv,
     cls: &CStr,
     name: &CStr,
     sig: &CStr,
 ) -> Result<(LocalRef<'env>, MethodID<STATIC>), LocalObject<'env, JavaThrowable>> {
-    // TODO: find in cache
+    #[cfg(feature = "cache")]
+    if let Some((cls, method)) = cache::find_class_and_method::<STATIC>(env, cls, name, sig) {
+        return Ok((cls, method));
+    }
 
     unsafe {
-        let cls = env.find_class(cls).map_err(|err| LocalObject::from_ref(err))?;
+        let cls_obj = env.find_class(cls).map_err(|err| LocalObject::from_ref(err))?;
+        let method = env
+            .get_method_id(&cls_obj, name, sig)
+            .map_err(|err| LocalObject::from_ref(err))?;
 
-        let method = env.get_method_id(&cls, name, sig).map_err(|err| LocalObject::from_ref(err))?;
+        #[cfg(feature = "cache")]
+        cache::put_class_and_method::<STATIC, _>(env, cls, name, sig, &cls_obj, method);
 
-        Ok((cls, method))
+        Ok((cls_obj, method))
     }
 }
 
-fn new_class_not_found_exception<'env>(env: &'env JNIEnv, msg: &str) -> LocalObject<'env, JavaThrowable> {
-    let (cls, method) =
-        match resolve_class_and_method_raw(env, c"java/lang/ClassNotFoundException", c"<init>", c"(Ljava/lang/String;)V") {
-            Ok(v) => v,
-            Err(err) => return err,
-        };
-
-    unsafe {
-        match env.new_object(&cls, method, [Arg::Object(Some(&env.new_string(&msg)))]) {
-            Ok(ex) => LocalObject::from_ref(ex),
-            Err(err) => LocalObject::from_ref(err),
-        }
-    }
-}
-
-fn convert_str_to_cstring<'env>(env: &'env JNIEnv, s: impl Into<Vec<u8>>) -> Result<CString, LocalObject<'env, JavaThrowable>> {
-    CString::new(s).map_err(|err| new_class_not_found_exception(env, &err.to_string()))
-}
-
-fn build_method_signature<'s>(ret: Signature, args: impl IntoIterator<Item = Signature>) -> String {
-    let mut s = String::with_capacity(16);
-
-    write!(s, "(").unwrap();
-
-    for arg in args {
-        write!(s, "{}", arg).unwrap();
-    }
-
-    write!(s, ")").unwrap();
-
-    write!(s, "{}", ret).unwrap();
-
-    s
-}
-
-pub fn resolve_method<'env, const STATIC: bool, C: StrongRef, AS: IntoIterator<Item = Signature>>(
+pub fn resolve_method<'env, const STATIC: bool, C: StrongRef>(
     env: &'env JNIEnv,
     cls: &C,
-    name: &str,
-    ret: Signature,
-    args: AS,
+    name: &CStr,
+    signature: &CStr,
 ) -> Result<MethodID<STATIC>, LocalObject<'env, JavaThrowable>> {
-    // TODO: find in cache
-
-    let name = convert_str_to_cstring(env, name)?;
-    let sig = convert_str_to_cstring(env, build_method_signature(ret, args))?;
+    #[cfg(feature = "cache")]
+    if let Some(method) = cache::find_method::<STATIC, _>(env, cls, name, signature) {
+        return Ok(method);
+    }
 
     unsafe {
-        env.get_method_id(cls, name.as_ref(), sig.as_ref())
-            .map_err(|err| LocalObject::from_ref(err))
+        let method = env
+            .get_method_id(cls, name, signature)
+            .map_err(|err| LocalObject::from_ref(err))?;
+
+        #[cfg(feature = "cache")]
+        cache::put_method::<STATIC, _>(env, cls, name, signature, method);
+
+        Ok(method)
     }
 }
 
 pub fn resolve_field<'env, const STATIC: bool, C: StrongRef>(
     env: &'env JNIEnv,
     cls: &C,
-    name: &str,
-    sig: Signature,
+    name: &CStr,
+    signature: &CStr,
 ) -> Result<FieldID<STATIC>, LocalObject<'env, JavaThrowable>> {
-    // TODO: find in cache
-
-    let name = convert_str_to_cstring(env, name)?;
-    let sig = convert_str_to_cstring(env, sig.to_string())?;
+    #[cfg(feature = "cache")]
+    if let Some(field) = cache::find_field::<STATIC, _>(env, cls, name, signature) {
+        return Ok(field);
+    }
 
     unsafe {
-        env.get_field_id(cls, name.as_ref(), sig.as_ref())
-            .map_err(|err| LocalObject::from_ref(err))
+        let field = env
+            .get_field_id(cls, name, signature)
+            .map_err(|err| LocalObject::from_ref(err))?;
+
+        #[cfg(feature = "cache")]
+        cache::put_field::<STATIC, _>(env, cls, name, signature, field);
+
+        Ok(field)
     }
 }

@@ -79,6 +79,8 @@ impl<'a, R: StrongRef> Drop for ModifiedUTF8StrGuard<'a, R> {
 impl<'vm> JNIEnv<'vm> {
     /// Create new modified UTF-8 string in jvm.
     pub fn new_modified_utf8_string(&self, s: impl AsRef<[u8]>) -> Result<LocalRef<'_>, LocalRef<'_>> {
+        assert!(s.as_ref().ends_with(b"\0"), "Modified UTF-8 string must be null-terminated.");
+
         unsafe {
             let obj = self.run_catch(|| call!(self.as_raw_ptr(), NewStringUTF, s.as_ref().as_ptr() as _))?;
 

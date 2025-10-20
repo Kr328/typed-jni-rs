@@ -4,7 +4,9 @@ mod target;
 use typed_jni_core::{JNIEnv, StrongRef};
 
 pub use self::{args::*, target::Target};
-use crate::{Class, LocalObject, ObjectType, Signature, Type, TypedRef, builtin::JavaThrowable, resolver};
+use crate::{
+    Class, LocalObject, ObjectType, Signature, Type, TypedRef, builtin::JavaThrowable, resolver, resolver::helper::MemberKind,
+};
 
 /// Extension methods for typed method call.
 pub trait TypedCallExt {
@@ -64,15 +66,17 @@ impl<'vm> TypedCallExt for JNIEnv<'vm> {
         A: Args,
     {
         unsafe {
-            let rsig = R::SIGNATURE;
-            let asig = args.signature();
+            let name = resolver::helper::build_member_name(self, name, MemberKind::Method)?;
+            let signature = resolver::helper::build_method_signature(self, R::SIGNATURE, args.signature())?;
 
             if T::STATIC {
-                let method = resolver::helper::resolve_method_by_this::<true, _, _>(self, &**this, name, rsig, asig)?;
+                let method = resolver::resolve_method::<true, _>(self, &**this, &*name, &signature)?;
 
                 args.apply_on(self, &**this, method)
             } else {
-                let method = resolver::helper::resolve_method_by_this::<false, _, _>(self, &**this, name, rsig, asig)?;
+                let cls = self.get_object_class(&**this);
+
+                let method = resolver::resolve_method::<false, _>(self, &cls, &*name, &signature)?;
 
                 args.apply_on(self, &**this, method)
             }
@@ -86,7 +90,9 @@ impl<'vm> TypedCallExt for JNIEnv<'vm> {
         A: Args,
     {
         unsafe {
-            let method = resolver::resolve_method::<false, _, _>(self, &**cls, "<init>", Signature::Void, args.signature())?;
+            let signature = resolver::helper::build_method_signature(self, Signature::Void, args.signature())?;
+
+            let method = resolver::resolve_method::<false, _>(self, &**cls, c"<init>", &signature)?;
 
             let target::NewObject(ret): target::NewObject<T> = args.apply_on(self, &**cls, method)?;
 

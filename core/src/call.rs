@@ -322,10 +322,10 @@ impl<'vm> JNIEnv<'vm> {
         #[cfg(debug_assertions)]
         cls.enforce_valid_runtime(self);
 
-        #[cfg(debug_assertions)]
         let args = args
             .into_iter()
             .map(|arg| {
+                #[cfg(debug_assertions)]
                 arg.enforce_valid_runtime(self);
 
                 arg.into_value()

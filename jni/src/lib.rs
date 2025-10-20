@@ -160,7 +160,7 @@ mod string;
 mod throwable;
 
 use ::core::{
-    fmt::{Display, Formatter},
+    fmt::{Display, Formatter, Write},
     marker::PhantomData,
     ops::Deref,
 };
@@ -185,21 +185,61 @@ pub enum Signature {
     Array(&'static Signature),
 }
 
+impl Signature {
+    pub const fn size_hint(&self) -> usize {
+        match self {
+            Signature::Void
+            | Signature::Boolean
+            | Signature::Byte
+            | Signature::Char
+            | Signature::Short
+            | Signature::Int
+            | Signature::Long
+            | Signature::Float
+            | Signature::Double => 1, // single char
+            Signature::Object(s) => s.len() + 2,              // L<name>;
+            Signature::Array(inner) => inner.size_hint() + 1, // [<inner>
+        }
+    }
+
+    pub fn write_to<W: Write>(&self, w: &mut W) -> ::core::fmt::Result {
+        match self {
+            Signature::Void => w.write_str("V"),
+            Signature::Boolean => w.write_str("Z"),
+            Signature::Byte => w.write_str("B"),
+            Signature::Char => w.write_str("C"),
+            Signature::Short => w.write_str("S"),
+            Signature::Int => w.write_str("I"),
+            Signature::Long => w.write_str("J"),
+            Signature::Float => w.write_str("F"),
+            Signature::Double => w.write_str("D"),
+            Signature::Object(name) => {
+                w.write_str("L")?;
+                w.write_str(name)?;
+                w.write_str(";")
+            }
+            Signature::Array(inner) => {
+                w.write_str("[")?;
+                inner.write_to(w)
+            }
+        }
+    }
+
+    pub fn write_as_class_name_to<W: Write>(&self, w: &mut W) -> ::core::fmt::Result {
+        match self {
+            Signature::Object(name) => w.write_str(name),
+            Signature::Array(inner) => {
+                w.write_str("[")?;
+                inner.write_to(w)
+            }
+            _ => self.write_to(w),
+        }
+    }
+}
+
 impl Display for Signature {
     fn fmt(&self, f: &mut Formatter<'_>) -> alloc::fmt::Result {
-        match self {
-            Signature::Void => f.write_str("V"),
-            Signature::Boolean => f.write_str("Z"),
-            Signature::Byte => f.write_str("B"),
-            Signature::Char => f.write_str("C"),
-            Signature::Short => f.write_str("S"),
-            Signature::Int => f.write_str("I"),
-            Signature::Long => f.write_str("J"),
-            Signature::Float => f.write_str("F"),
-            Signature::Double => f.write_str("D"),
-            Signature::Object(name) => f.write_fmt(format_args!("L{};", name)),
-            Signature::Array(inner) => f.write_fmt(format_args!("[{}", inner)),
-        }
+        self.write_to(f)
     }
 }
 
