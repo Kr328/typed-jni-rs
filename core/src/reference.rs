@@ -212,6 +212,9 @@ impl<'vm> Drop for GlobalRef<'vm> {
     }
 }
 
+unsafe impl<'vm> Send for GlobalRef<'vm> {}
+unsafe impl<'vm> Sync for GlobalRef<'vm> {}
+
 /// GlobalWeakRef is a weak global reference to a Java object.
 ///
 /// Weak global references are valid across multiple threads and are automatically
@@ -271,6 +274,9 @@ impl<'vm> Drop for WeakGlobalRef<'vm> {
     }
 }
 
+unsafe impl<'vm> Send for WeakGlobalRef<'vm> {}
+unsafe impl<'vm> Sync for WeakGlobalRef<'vm> {}
+
 impl<'vm> JNIEnv<'vm> {
     /// Creates a new local reference to the given reference.
     pub fn new_local_ref<R: Ref>(&self, r: &R) -> Option<LocalRef<'_>> {
@@ -312,5 +318,18 @@ impl<'vm> JNIEnv<'vm> {
 
             Some(WeakGlobalRef::from_raw(self.vm(), NonNull::new(raw)?.as_ptr()))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{GlobalRef, WeakGlobalRef};
+
+    fn enforce_send_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn test_global_refs() {
+        enforce_send_sync::<GlobalRef>();
+        enforce_send_sync::<WeakGlobalRef>();
     }
 }
