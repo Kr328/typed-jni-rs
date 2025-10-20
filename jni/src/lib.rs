@@ -61,10 +61,10 @@
 //! Firstly, add necessary classes defines in your Rust code.
 //!
 //! ```rust
-//!  use typed_jni::define_java_class;
+//! use typed_jni::define_java_class;
 //!
-//!  define_java_class!(JavaExample1, "org.example.Example1"); // `Java` prefix of name is not required
-//!  define_java_class!(JavaExample2, "org.example.Example2");
+//! define_java_class!(JavaExample1, "org.example.Example1"); // `Java` prefix of name is not required
+//! define_java_class!(JavaExample2, "org.example.Example2");
 //! ```
 //!
 //! ### Access Java in Rust
@@ -72,17 +72,17 @@
 //! Now you can access Java classes in type-safe way.
 //!
 //! ```rust
-//!  use std::string::String;
+//! use std::string::String;
 //!
-//!  use typed_jni::{
-//!     LocalClass, LocalObject, TypedCallExt, TypedClassExt, TypedFieldAccessExt, TypedStringExt, builtin::JavaString, core::JNIEnv,
-//!     define_java_class,
-//!  };
+//! use typed_jni::{
+//!    LocalClass, LocalObject, TypedCallExt, TypedClassExt, TypedFieldAccessExt, TypedStringExt, builtin::JavaString, core::JNIEnv,
+//!    define_java_class,
+//! };
 //!
-//!  define_java_class!(JavaExample1, "org.example.Example1");
-//!  define_java_class!(JavaExample2, "org.example.Example2");
+//! define_java_class!(JavaExample1, "org.example.Example1");
+//! define_java_class!(JavaExample2, "org.example.Example2");
 //!
-//!  fn run_jni<'env>(env: &'env JNIEnv<'static>) {
+//! fn run_jni<'env>(env: &'env JNIEnv<'static>) {
 //!     // create Example object
 //!     let example1_cls: LocalClass<JavaExample1> = env.typed_find_class().unwrap();
 //!     let example1_obj: LocalObject<JavaExample1> = env
@@ -112,7 +112,7 @@
 //!
 //!     // get example1 field
 //!     let example1: LocalObject<JavaExample1> = env.typed_get_field(&example2_obj, "example1").unwrap();
-//!  }
+//! }
 //! ```
 //!
 //! ### Access Rust in Java
@@ -120,21 +120,21 @@
 //! You should define native methods in Rust code with following signature.
 //!
 //! ```rust
-//!  use typed_jni::{define_java_class, TrampolineObject, core::JNIEnv, builtin::JavaString, TypedStringExt};
+//! use typed_jni::{define_java_class, TrampolineObject, core::JNIEnv, builtin::JavaString, TypedStringExt};
 //!
-//!  define_java_class!(JavaExample1, "org.example.Example1");
+//! define_java_class!(JavaExample1, "org.example.Example1");
 //!
-//!  #[unsafe(no_mangle)]
-//!  pub extern "system" fn Java_org_example_Example1_nativeHello<'env>(env: &'env JNIEnv, obj: TrampolineObject<'env, JavaExample1>, str: TrampolineObject<'env, JavaString>) {
-//!      let str: String = env.typed_get_string(&str);
+//! #[unsafe(no_mangle)]
+//! pub extern "system" fn Java_org_example_Example1_nativeHello<'env>(env: &'env JNIEnv, obj: TrampolineObject<'env, JavaExample1>, str: TrampolineObject<'env, JavaString>) {
+//!     let str: String = env.typed_get_string(&str);
 //!
-//!      println!("{}", str);
-//!  }
+//!     println!("{}", str);
+//! }
 //!
-//!  #[unsafe(no_mangle)]
-//!  pub extern "system" fn Java_org_example_Example1_getStr<'env>(env: &'env JNIEnv, obj: TrampolineObject<'env, JavaExample1>) -> TrampolineObject<'env, JavaString> {
-//!      env.typed_new_string("native string").into_trampoline()
-//!  }
+//! #[unsafe(no_mangle)]
+//! pub extern "system" fn Java_org_example_Example1_getStr<'env>(env: &'env JNIEnv, obj: TrampolineObject<'env, JavaExample1>) -> TrampolineObject<'env, JavaString> {
+//!     env.typed_new_string("native string").into_trampoline()
+//! }
 //! ```
 //!
 //! Then load it in Java code.

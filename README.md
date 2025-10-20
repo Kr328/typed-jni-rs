@@ -1,5 +1,8 @@
 # typed-jni-rs
 
+[![crates.io](https://img.shields.io/crates/v/typed-jni.svg)](https://crates.io/crates/typed-jni)
+[![docs.rs](https://img.shields.io/docsrs/typed-jni)](https://docs.rs/typed-jni)
+
 Rust bindings for the Java Native Interface (JNI) with typed references.
 
 ## Crates
