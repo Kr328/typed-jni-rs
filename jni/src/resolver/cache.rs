@@ -14,7 +14,7 @@ const fn new_slot<const N: usize, T>() -> Slot<N, T> {
 }
 
 fn clear_slot<const N: usize, T>(slot: &'static LocalKey<Slot<N, T>>) {
-    slot.replace(None);
+    let _ = slot.try_with(|v| v.take());
 }
 
 struct MethodWithClass {
