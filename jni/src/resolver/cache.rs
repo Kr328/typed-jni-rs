@@ -111,7 +111,7 @@ fn find_member<R: StrongRef, T: Copy>(
 
         let vm = env.vm();
         let entry = cache.find(|v| {
-            v.vm == vm.as_raw_ptr() && env.is_same_object(Some(&v.class), Some(cls)) && v.name == name && v.sig == sig
+            v.vm == vm.as_raw_ptr() && v.name == name && v.sig == sig && env.is_same_object(Some(&v.class), Some(cls))
         })?;
 
         Some(entry.member)
