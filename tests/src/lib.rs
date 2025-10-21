@@ -7,6 +7,7 @@ mod field;
 mod native;
 mod object;
 mod string;
+mod throwable;
 
 use std::{process::Stdio, sync::OnceLock};
 
