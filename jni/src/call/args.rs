@@ -138,72 +138,41 @@ macro_rules! impl_fixed_args {
     };
 }
 
-impl_fixed_args!(A1);
-impl_fixed_args!(A1, A2);
-impl_fixed_args!(A1, A2, A3);
-impl_fixed_args!(A1, A2, A3, A4);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16);
-impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27,
-    A28
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27,
-    A28, A29
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27,
-    A28, A29, A30
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27,
-    A28, A29, A30, A31
-);
-impl_fixed_args!(
-    A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27,
-    A28, A29, A30, A31, A32
-);
+#[rustfmt::skip]
+const _: () = {
+    impl_fixed_args!(A1);
+    impl_fixed_args!(A1, A2);
+    impl_fixed_args!(A1, A2, A3);
+    impl_fixed_args!(A1, A2, A3, A4);
+    impl_fixed_args!(A1, A2, A3, A4, A5);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27, A28);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27, A28, A29);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27, A28, A29, A30);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27, A28, A29, A30, A31);
+    impl_fixed_args!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, A20, A21, A22, A23, A24, A25, A26, A27, A28, A29, A30, A31, A32);
+};
 
 /// A dynamic argument to be applied to a JNI call.
 pub trait DynArg: ToArg {
