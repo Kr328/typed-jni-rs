@@ -1,195 +1,93 @@
+use alloc::collections::btree_map::Entry;
 use std::{
     cell::RefCell,
+    collections::BTreeMap,
     ffi::{CStr, CString},
     sync::Once,
-    thread::LocalKey,
 };
 
 use typed_jni_core::{AttachHook, FieldID, JNIEnv, JavaVM, LocalRef, MethodID, StrongRef, WeakGlobalRef, sys};
+use uluru::LRUCache;
 
-pub type Slot<const N: usize, T> = RefCell<Option<Box<uluru::LRUCache<T, N>>>>;
-
-const fn new_slot<const N: usize, T>() -> Slot<N, T> {
-    RefCell::new(None)
-}
-
-fn clear_slot<const N: usize, T>(slot: &'static LocalKey<Slot<N, T>>) {
-    let _ = slot.try_with(|v| v.take());
-}
+const METHOD_WITH_CLASS_CAPACITY: usize = 8;
+const MEMBER_ONLY_CAPACITY: usize = 32;
 
 struct MethodWithClass {
-    vm: *mut sys::JavaVM,
+    cls: WeakGlobalRef<'static>,
+    method: sys::jmethodID,
+    sig: CString,
     class: CString,
     name: CString,
-    sig: CString,
-    class_obj: WeakGlobalRef<'static>,
-    method: sys::jmethodID,
-}
-
-thread_local! {
-    static CACHED_STATIC_METHODS_WITH_CLASS: Slot<8, MethodWithClass> = const { new_slot() };
-    static CACHED_INSTANCE_METHODS_WITH_CLASS: Slot<8, MethodWithClass> = const { new_slot() };
-}
-
-pub fn find_class_and_method<'env, const STATIC: bool>(
-    env: &'env JNIEnv,
-    cls: &CStr,
-    name: &CStr,
-    sig: &CStr,
-) -> Option<(LocalRef<'env>, MethodID<STATIC>)> {
-    let slot = if STATIC {
-        &CACHED_STATIC_METHODS_WITH_CLASS
-    } else {
-        &CACHED_INSTANCE_METHODS_WITH_CLASS
-    };
-
-    slot.with_borrow_mut(|v| unsafe {
-        let cache = v.as_mut()?;
-
-        let vm = env.vm();
-        let entry = cache.find(|v| v.vm == vm.as_raw_ptr() && v.class == cls && v.name == name && v.sig == sig)?;
-
-        let cls = env.new_local_ref(&entry.class_obj)?;
-        let id = MethodID::from_raw(entry.method);
-
-        Some((cls, id))
-    })
-}
-
-pub fn put_class_and_method<const STATIC: bool, R: StrongRef>(
-    env: &JNIEnv,
-    cls: &CStr,
-    name: &CStr,
-    sig: &CStr,
-    cls_obj: &R,
-    method: MethodID<STATIC>,
-) {
-    setup_cache();
-
-    let slot = if STATIC {
-        &CACHED_STATIC_METHODS_WITH_CLASS
-    } else {
-        &CACHED_INSTANCE_METHODS_WITH_CLASS
-    };
-
-    slot.with_borrow_mut(|v| unsafe {
-        let cache = v.get_or_insert_default();
-
-        let vm = env.vm();
-        let entry = MethodWithClass {
-            vm: vm.as_raw_ptr(),
-            class: cls.to_owned(),
-            name: name.to_owned(),
-            sig: sig.to_owned(),
-            class_obj: core::mem::transmute::<WeakGlobalRef<'_>, WeakGlobalRef<'static>>(env.new_weak_global_ref(cls_obj)?),
-            method: method.as_raw_ptr(),
-        };
-
-        cache.insert(entry);
-
-        Some(())
-    });
 }
 
 struct Member<T> {
-    vm: *mut sys::JavaVM,
-    class: WeakGlobalRef<'static>,
+    cls: WeakGlobalRef<'static>,
+    member: T,
     name: CString,
     sig: CString,
-    member: T,
 }
 
-fn find_member<R: StrongRef, T: Copy>(
-    slot: &'static LocalKey<Slot<32, Member<T>>>,
-    env: &JNIEnv,
-    cls: &R,
-    name: &CStr,
-    sig: &CStr,
-) -> Option<T> {
-    slot.with_borrow_mut(|v| {
-        let cache = v.as_mut()?;
-
-        let vm = env.vm();
-        let entry = cache.find(|v| {
-            v.vm == vm.as_raw_ptr() && v.name == name && v.sig == sig && env.is_same_object(Some(&v.class), Some(cls))
-        })?;
-
-        Some(entry.member)
-    })
+#[derive(Default)]
+struct Cached {
+    static_method_with_class: LRUCache<MethodWithClass, METHOD_WITH_CLASS_CAPACITY>,
+    instance_method_with_class: LRUCache<MethodWithClass, METHOD_WITH_CLASS_CAPACITY>,
+    static_methods: LRUCache<Member<sys::jmethodID>, MEMBER_ONLY_CAPACITY>,
+    instance_methods: LRUCache<Member<sys::jmethodID>, MEMBER_ONLY_CAPACITY>,
+    static_fields: LRUCache<Member<sys::jfieldID>, MEMBER_ONLY_CAPACITY>,
+    instance_fields: LRUCache<Member<sys::jfieldID>, MEMBER_ONLY_CAPACITY>,
 }
 
-fn put_member<R: StrongRef, T>(
-    slot: &'static LocalKey<Slot<32, Member<T>>>,
-    env: &JNIEnv,
-    cls: &R,
-    name: &CStr,
-    sig: &CStr,
-    member: T,
-) {
-    setup_cache();
+#[derive(Default)]
+struct AttachOnClean(Option<Box<Cached>>);
 
-    slot.with_borrow_mut(|v| unsafe {
-        let cache = v.get_or_insert_default();
+impl Drop for AttachOnClean {
+    fn drop(&mut self) {
+        if let Some(c) = self.0.take() {
+            let mut attached: BTreeMap<*mut sys::JavaVM, bool> = BTreeMap::new();
 
-        let vm = env.vm();
-        let entry = Member {
-            vm: vm.as_raw_ptr(),
-            class: core::mem::transmute::<WeakGlobalRef<'_>, WeakGlobalRef<'static>>(env.new_weak_global_ref(cls)?),
-            name: name.to_owned(),
-            sig: sig.to_owned(),
-            member,
-        };
+            let mut handle_vm = |vm: &'static JavaVM| unsafe {
+                if let Entry::Vacant(v) = attached.entry(vm.as_raw_ptr()) {
+                    if vm.current_env().is_some() {
+                        v.insert(false);
+                    } else {
+                        vm.attach_current_thread(false).unwrap();
 
-        cache.insert(entry);
+                        v.insert(true);
+                    }
+                }
+            };
 
-        Some(())
-    });
-}
+            for c in [&c.static_method_with_class, &c.instance_method_with_class] {
+                for entry in c.iter() {
+                    handle_vm(entry.cls.vm());
+                }
+            }
+            for c in [&c.static_methods, &c.instance_methods] {
+                for entry in c.iter() {
+                    handle_vm(entry.cls.vm());
+                }
+            }
+            for c in [&c.static_fields, &c.instance_fields] {
+                for entry in c.iter() {
+                    handle_vm(entry.cls.vm());
+                }
+            }
 
-thread_local! {
-    static CACHED_STATIC_METHODS: Slot<32, Member<sys::jmethodID>> = const { new_slot() };
-    static CACHED_INSTANCE_METHODS: Slot<32, Member<sys::jmethodID>> = const { new_slot() };
-}
+            drop(c);
 
-pub fn find_method<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name: &CStr, sig: &CStr) -> Option<MethodID<STATIC>> {
-    let method = if STATIC {
-        find_member(&CACHED_STATIC_METHODS, env, cls, name, sig)?
-    } else {
-        find_member(&CACHED_INSTANCE_METHODS, env, cls, name, sig)?
-    };
-
-    unsafe { Some(MethodID::from_raw(method)) }
-}
-
-pub fn put_method<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name: &CStr, sig: &CStr, method: MethodID<STATIC>) {
-    if STATIC {
-        put_member(&CACHED_STATIC_METHODS, env, cls, name, sig, method.as_raw_ptr())
-    } else {
-        put_member(&CACHED_INSTANCE_METHODS, env, cls, name, sig, method.as_raw_ptr())
+            for (vm, attached) in attached {
+                if attached {
+                    unsafe {
+                        let _ = JavaVM::from_raw(vm).detach_current_thread();
+                    }
+                }
+            }
+        }
     }
 }
 
 thread_local! {
-    static CACHED_STATIC_FIELDS: Slot<32, Member<sys::jfieldID>> = const { new_slot() };
-    static CACHED_INSTANCE_FIELDS: Slot<32, Member<sys::jfieldID>> = const { new_slot() };
-}
-
-pub fn find_field<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name: &CStr, sig: &CStr) -> Option<FieldID<STATIC>> {
-    let field = if STATIC {
-        find_member(&CACHED_STATIC_FIELDS, env, cls, name, sig)?
-    } else {
-        find_member(&CACHED_INSTANCE_FIELDS, env, cls, name, sig)?
-    };
-
-    unsafe { Some(FieldID::from_raw(field)) }
-}
-
-pub fn put_field<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name: &CStr, sig: &CStr, field: FieldID<STATIC>) {
-    if STATIC {
-        put_member(&CACHED_STATIC_FIELDS, env, cls, name, sig, field.as_raw_ptr())
-    } else {
-        put_member(&CACHED_INSTANCE_FIELDS, env, cls, name, sig, field.as_raw_ptr())
-    }
+    static CACHED: RefCell<AttachOnClean> = const { RefCell::new(AttachOnClean(None)) };
 }
 
 fn setup_cache() {
@@ -197,12 +95,8 @@ fn setup_cache() {
 
     fn cleanup_cache_with_vm(vm: &JavaVM) {
         unsafe {
-            clear_slot(&CACHED_STATIC_METHODS_WITH_CLASS);
-            clear_slot(&CACHED_INSTANCE_METHODS_WITH_CLASS);
-            clear_slot(&CACHED_STATIC_METHODS);
-            clear_slot(&CACHED_INSTANCE_METHODS);
-            clear_slot(&CACHED_STATIC_FIELDS);
-            clear_slot(&CACHED_INSTANCE_FIELDS);
+            let cached = CACHED.try_with(|v| v.take());
+            drop(cached);
 
             if let Some(hook) = PREV_HOOK {
                 hook(vm)
@@ -216,4 +110,173 @@ fn setup_cache() {
 
         PREV_HOOK = prev;
     })
+}
+
+pub fn find_class_and_method<'env, const STATIC: bool>(
+    env: &'env JNIEnv,
+    cls: &CStr,
+    name: &CStr,
+    sig: &CStr,
+) -> Option<(LocalRef<'env>, MethodID<STATIC>)> {
+    CACHED.with_borrow_mut(|AttachOnClean(v)| {
+        let v = v.as_mut()?;
+
+        let cache = if STATIC {
+            &mut v.static_method_with_class
+        } else {
+            &mut v.instance_method_with_class
+        };
+
+        let vm = env.vm();
+        let entry =
+            cache.find(|v| v.cls.vm().as_raw_ptr() == vm.as_raw_ptr() && v.class == cls && v.name == name && v.sig == sig)?;
+
+        let cls = env.new_local_ref(&entry.cls)?;
+        let id = unsafe { MethodID::from_raw(entry.method) };
+
+        Some((cls, id))
+    })
+}
+
+pub fn put_class_and_method<const STATIC: bool, R: StrongRef>(
+    env: &JNIEnv,
+    class: &CStr,
+    name: &CStr,
+    sig: &CStr,
+    cls: &R,
+    method: MethodID<STATIC>,
+) {
+    setup_cache();
+
+    CACHED.with_borrow_mut(|AttachOnClean(v)| {
+        let v = v.get_or_insert_default();
+
+        let cache = if STATIC {
+            &mut v.static_method_with_class
+        } else {
+            &mut v.instance_method_with_class
+        };
+
+        let cls = match env.new_weak_global_ref(cls) {
+            Some(cls) => cls,
+            None => return,
+        };
+
+        let entry = MethodWithClass {
+            cls: unsafe { core::mem::transmute::<WeakGlobalRef<'_>, WeakGlobalRef<'static>>(cls) },
+            method: method.as_raw_ptr(),
+            class: class.to_owned(),
+            name: name.to_owned(),
+            sig: sig.to_owned(),
+        };
+
+        cache.insert(entry);
+    });
+}
+
+fn find_member<R: StrongRef, T: Copy>(
+    cache: &mut LRUCache<Member<T>, MEMBER_ONLY_CAPACITY>,
+    env: &JNIEnv,
+    cls: &R,
+    name: &CStr,
+    sig: &CStr,
+) -> Option<T> {
+    let vm = env.vm();
+    let entry = cache.find(|v| {
+        v.cls.vm().as_raw_ptr() == vm.as_raw_ptr()
+            && v.name == name
+            && v.sig == sig
+            && env.is_same_object(Some(&v.cls), Some(cls))
+    })?;
+
+    Some(entry.member)
+}
+
+fn put_member<R: StrongRef, T>(
+    cache: &mut LRUCache<Member<T>, MEMBER_ONLY_CAPACITY>,
+    env: &JNIEnv,
+    cls: &R,
+    name: &CStr,
+    sig: &CStr,
+    member: T,
+) {
+    let cls = match env.new_weak_global_ref(cls) {
+        Some(cls) => cls,
+        None => return,
+    };
+
+    let entry = Member {
+        cls: unsafe { core::mem::transmute::<WeakGlobalRef<'_>, WeakGlobalRef<'static>>(cls) },
+        name: name.to_owned(),
+        sig: sig.to_owned(),
+        member,
+    };
+
+    cache.insert(entry);
+}
+
+pub fn find_method<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name: &CStr, sig: &CStr) -> Option<MethodID<STATIC>> {
+    CACHED.with_borrow_mut(|AttachOnClean(v)| {
+        let cache = v.as_mut()?;
+
+        let method = if STATIC {
+            find_member(&mut cache.static_methods, env, cls, name, sig)?
+        } else {
+            find_member(&mut cache.instance_methods, env, cls, name, sig)?
+        };
+
+        unsafe { Some(MethodID::from_raw(method)) }
+    })
+}
+
+pub fn put_method<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name: &CStr, sig: &CStr, method: MethodID<STATIC>) {
+    setup_cache();
+
+    CACHED.with_borrow_mut(|AttachOnClean(v)| {
+        let cache = v.get_or_insert_default();
+
+        if STATIC {
+            put_member(&mut cache.static_methods, env, cls, name, sig, method.as_raw_ptr())
+        } else {
+            put_member(&mut cache.instance_methods, env, cls, name, sig, method.as_raw_ptr())
+        }
+    });
+}
+
+pub fn find_field<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name: &CStr, sig: &CStr) -> Option<FieldID<STATIC>> {
+    CACHED.with_borrow_mut(|AttachOnClean(v)| {
+        let cache = v.as_mut()?;
+
+        let method = if STATIC {
+            find_member(&mut cache.static_fields, env, cls, name, sig)?
+        } else {
+            find_member(&mut cache.instance_fields, env, cls, name, sig)?
+        };
+
+        unsafe { Some(FieldID::from_raw(method)) }
+    })
+}
+
+pub fn put_field<const STATIC: bool, R: StrongRef>(env: &JNIEnv, cls: &R, name: &CStr, sig: &CStr, field: FieldID<STATIC>) {
+    setup_cache();
+
+    CACHED.with_borrow_mut(|AttachOnClean(v)| {
+        let cache = v.get_or_insert_default();
+
+        if STATIC {
+            put_member(&mut cache.static_fields, env, cls, name, sig, field.as_raw_ptr())
+        } else {
+            put_member(&mut cache.instance_fields, env, cls, name, sig, field.as_raw_ptr())
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::resolver::cache::Cached;
+
+    #[test]
+    fn print_cached_size() {
+        println!("{}", size_of::<Cached>())
+    }
 }

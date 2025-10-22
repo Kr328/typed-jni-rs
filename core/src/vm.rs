@@ -66,7 +66,12 @@ impl JavaVM {
 pub struct AttachError;
 
 impl JavaVM {
-    fn current_env(&self) -> Option<&'_ JNIEnv<'_>> {
+    /// Get the current thread's JNIEnv.
+    ///
+    /// # Safety
+    ///
+    /// The JNIEnv not managed by lifetime system, please make sure it is not used after detachment.
+    pub unsafe fn current_env(&self) -> Option<&'_ JNIEnv<'_>> {
         unsafe {
             let mut env: *mut sys::JNIEnv = core::ptr::null_mut();
 
@@ -85,7 +90,7 @@ impl JavaVM {
     where
         F: for<'env> FnOnce(&'env JNIEnv<'vm>) -> R,
     {
-        self.current_env().map(f)
+        unsafe { self.current_env().map(f) }
     }
 
     /// Attach the current thread to the Java VM.
@@ -150,7 +155,7 @@ impl JavaVM {
     where
         F: for<'env> FnOnce(&'env JNIEnv<'vm>) -> R,
     {
-        match self.current_env() {
+        match unsafe { self.current_env() } {
             Some(env) => {
                 unsafe {
                     let ret = call!(env.as_raw_ptr(), PushLocalFrame, 4);

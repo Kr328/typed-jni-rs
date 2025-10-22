@@ -3,8 +3,13 @@ name = "tests"
 version.workspace = true
 edition.workspace = true
 
+[features]
+cache = ["typed-jni/cache"]
+print-throwable = ["typed-jni/print-throwable"]
+default = ["cache"]
+
 [dependencies]
-typed-jni = { workspace = true, features = ["default", "print-throwable"] }
+typed-jni = { workspace = true }
 
 jni = { version = "0.21", features = ["invocation"] }
 tempdir = "0.3"

@@ -1,6 +1,8 @@
 #![cfg(test)]
 
 mod array;
+#[cfg(feature = "cache")]
+mod cache;
 mod call;
 mod class;
 mod field;

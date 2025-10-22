@@ -3,7 +3,7 @@ resolver = "2"
 members = ["core", "example", "jni", "tests"]
 
 [workspace.package]
-version = "1.1.1"
+version = "1.1.2"
 edition = "2024"
 license = "MIT"
 description = "Type-Safe JNI access for Rust."
@@ -13,5 +13,5 @@ keywords = ["jni", "java"]
 categories = ["development-tools::ffi"]
 
 [workspace.dependencies]
-typed-jni-core = { path = "core", version = "1.1.1", default-features = false }
-typed-jni = { path = "jni", version = "1.1.1", default-features = false }
+typed-jni-core = { path = "core", version = "1.1.2", default-features = false }
+typed-jni = { path = "jni", version = "1.1.2", default-features = false }
