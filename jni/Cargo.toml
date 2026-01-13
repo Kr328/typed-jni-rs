@@ -9,6 +9,7 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 readme = "./README.md"
+license-file = "./LICENSE"
 
 [features]
 std = []

@@ -40,7 +40,7 @@ impl<'vm> TypedClassExt for JNIEnv<'vm> {
         class_loader: &Object<R, JavaClassLoader>,
     ) -> Result<LocalClass<'_, T>, LocalObject<'_, JavaThrowable>> {
         unsafe {
-            let (_, method) = resolver::resolve_class_and_method::<true>(
+            let (class, method) = resolver::resolve_class_and_method::<true>(
                 self,
                 c"java/lang/Class",
                 c"forName",
@@ -52,7 +52,7 @@ impl<'vm> TypedClassExt for JNIEnv<'vm> {
                 .map_err(|err| LocalObject::from_ref(err))?;
 
             self.call_object_method(
-                &**class_loader,
+                &class,
                 method,
                 [
                     Arg::Object(Some(&class_name)),
