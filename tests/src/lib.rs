@@ -25,7 +25,7 @@ fn with_java_vm<R, F: for<'env> FnOnce(&'env JNIEnv<'static>) -> R>(f: F) -> R {
 
     let vm = VM.get_or_init(|| jni::JavaVM::new(jni::InitArgsBuilder::new().build().unwrap()).unwrap());
 
-    let vm: &'static JavaVM = unsafe { JavaVM::from_raw(vm.get_java_vm_pointer() as _) };
+    let vm: &'static JavaVM = unsafe { JavaVM::from_raw(vm.get_raw() as _) };
 
     vm.with_attached_thread(false, |env| f(env)).unwrap()
 }

@@ -45,7 +45,7 @@ fn main() {
     )
     .unwrap();
 
-    let vm = unsafe { JavaVM::from_raw(vm.get_java_vm_pointer() as _) };
+    let vm = unsafe { JavaVM::from_raw(vm.get_raw() as _) };
 
     vm.with_attached_thread(false, |env| {
         let c_system: LocalClass<JavaSystem> = env.typed_find_class().unwrap();

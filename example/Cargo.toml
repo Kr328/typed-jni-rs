@@ -9,4 +9,4 @@ crate-type = ["lib", "cdylib"]
 [dependencies]
 typed-jni = { workspace = true, features = ["default"] }
 
-jni = { version = "0.21", features = ["invocation"] }
+jni = { version = "0.22", features = ["invocation"] }
